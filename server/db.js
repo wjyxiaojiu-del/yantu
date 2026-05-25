@@ -20,6 +20,8 @@ export async function initDB() {
     db = new SQL.Database();
   }
   createTables();
+  migrateTenantColumns();
+  ensureDefaultTenant();
   return db;
 }
 
@@ -340,6 +342,45 @@ function createTables() {
     path TEXT NOT NULL,
     created_at TEXT DEFAULT (datetime('now'))
   )`);
+
+  // === Tenant (Multi-tenancy) Tables ===
+  db.run(`CREATE TABLE IF NOT EXISTS tenants (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    slug TEXT UNIQUE,
+    description TEXT,
+    logo TEXT,
+    plan TEXT DEFAULT 'free',
+    max_mentors INTEGER DEFAULT 1,
+    max_students INTEGER DEFAULT 5,
+    max_storage_mb INTEGER DEFAULT 100,
+    used_storage_mb INTEGER DEFAULT 0,
+    owner_id INTEGER NOT NULL,
+    expires_at TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS tenant_members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    role TEXT DEFAULT 'student',
+    joined_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(tenant_id, user_id)
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS tenant_invites (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id INTEGER NOT NULL,
+    code TEXT UNIQUE NOT NULL,
+    role TEXT DEFAULT 'student',
+    max_uses INTEGER DEFAULT 1,
+    used_count INTEGER DEFAULT 0,
+    expires_at TEXT,
+    created_by INTEGER NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+  )`);
 }
 
 export function saveDB(immediate = false) {
@@ -419,4 +460,30 @@ export function run(sql, params = []) {
   db.run(sql, params);
   saveDB();
   return { lastInsertRowid: db.exec("SELECT last_insert_rowid()")[0]?.values[0]?.[0] || 0 };
+}
+
+// === Tenant migration helpers ===
+
+const TABLES_NEEDING_TENANT = [
+  'mentors','students','mentor_student_relations','review_stages','mentor_tasks',
+  'meeting_records','achievements','notifications','activity_logs','task_comments',
+  'student_projects','attendance_records','files','projects','sprints','user_stories',
+  'agile_tasks','standup_logs','agile_risks','agile_milestones','literature','agile_meetings'
+];
+
+export function migrateTenantColumns() {
+  for (const table of TABLES_NEEDING_TENANT) {
+    try { db.run(`ALTER TABLE ${table} ADD COLUMN tenant_id INTEGER DEFAULT 1`); }
+    catch (e) { if (!e.message?.includes('duplicate')) console.warn(`[Migrate] ${table}:`, e.message); }
+  }
+}
+
+export function ensureDefaultTenant() {
+  if (queryOne('SELECT 1 FROM tenants WHERE id = 1')) return;
+  const firstUser = queryOne('SELECT id FROM users ORDER BY id LIMIT 1');
+  const ownerId = firstUser?.id || 1;
+  db.run(`INSERT INTO tenants (id,name,slug,plan,owner_id,max_mentors,max_students) VALUES (1,'默认课题组','default','pro',?,99,999)`, [ownerId]);
+  for (const u of queryAll('SELECT id, role FROM users')) {
+    db.run('INSERT OR IGNORE INTO tenant_members (tenant_id,user_id,role) VALUES (1,?,?)', [u.id, u.role]);
+  }
 }

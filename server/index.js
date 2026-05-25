@@ -6,6 +6,7 @@ import { join } from 'path';
 import { initDB, flushDB, getDBIntegrity } from './db.js';
 import { getMentorRoutes } from './routes/mentor.js';
 import { getAuthRoutes } from './routes/auth.js';
+import { getTenantRoutes } from './routes/tenant.js';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
@@ -24,6 +25,7 @@ const agileModules = [
   { path: '/api/meetings', router: './routes/agile/meetings.js' },
   { path: '/api/export', router: './routes/agile/export.js' },
   { path: '/api/ai', router: './routes/agile/ai.js' },
+  { path: '/api/reports', router: './routes/report.js' },
 ];
 
 const app = express();
@@ -33,8 +35,9 @@ app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(join(__dirname, 'uploads')));
 
-// Auth & Mentor routes
+// Auth & Mentor & Tenant routes
 getAuthRoutes(app);
+getTenantRoutes(app);
 getMentorRoutes(app);
 
 // Agile routes (dynamic import)

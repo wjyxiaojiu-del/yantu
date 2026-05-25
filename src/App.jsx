@@ -1,9 +1,10 @@
 import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
-import { Search, X, LayoutDashboard, Users, ClipboardList, CalendarCheck, Award, Trophy, Kanban, CalendarDays, BookOpen, FileBarChart, Bell, CalendarIcon, Clock, FolderOpen } from 'lucide-react';
+import { Search, X, LayoutDashboard, Users, ClipboardList, CalendarCheck, Award, Trophy, Kanban, CalendarDays, BookOpen, FileBarChart, Bell, CalendarIcon, Clock, FolderOpen, Building2, ChevronDown, BarChart3 } from 'lucide-react';
 import { ThemeProvider } from './context/ThemeContext';
 import { ProjectProvider } from './context/ProjectContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { TenantProvider, useTenant } from './context/TenantContext';
 import { ToastProvider } from './components/Toast';
 import ErrorBoundary from './components/ErrorBoundary';
 import MentorSidebar from './components/MentorSidebar';
@@ -16,10 +17,12 @@ const TaskAssign = lazy(() => import('./pages/mentor/TaskAssign'));
 const MeetingManager = lazy(() => import('./pages/mentor/MeetingManager'));
 const ReviewStages = lazy(() => import('./pages/mentor/ReviewStages'));
 const AchievementManager = lazy(() => import('./pages/mentor/AchievementManager'));
+const ReportDashboard = lazy(() => import('./pages/mentor/ReportDashboard'));
 const NotificationCenter = lazy(() => import('./pages/common/NotificationCenter'));
 const CalendarView = lazy(() => import('./pages/common/CalendarView'));
 const AttendancePage = lazy(() => import('./pages/common/AttendancePage'));
 const FileLibrary = lazy(() => import('./pages/common/FileLibrary'));
+const TenantManagement = lazy(() => import('./pages/common/TenantManagement'));
 
 // Agile pages
 const AgileDashboard = lazy(() => import('./pages/agile/Dashboard'));
@@ -50,6 +53,7 @@ const commonPages = [
   { path: '/attendance', label: '考勤打卡', icon: Clock },
   { path: '/files', label: '文件资料库', icon: FolderOpen },
   { path: '/notifications', label: '消息通知', icon: Bell },
+  { path: '/tenant', label: '课题组管理', icon: Building2 },
 ];
 
 const mentorPages = [
@@ -59,6 +63,7 @@ const mentorPages = [
   { path: '/meetings', label: '组会管理', icon: CalendarCheck },
   { path: '/reviews', label: '节点评审', icon: Award },
   { path: '/achievements', label: '学术成果', icon: Trophy },
+  { path: '/report-dashboard', label: '数据大屏', icon: BarChart3 },
   ...commonPages,
 ];
 
@@ -83,10 +88,12 @@ const appRoutes = [
   { path: '/meetings', element: <MeetingManager /> },
   { path: '/reviews', element: <ReviewStages /> },
   { path: '/achievements', element: <AchievementManager /> },
+  { path: '/report-dashboard', element: <ReportDashboard /> },
   { path: '/notifications', element: <NotificationCenter /> },
   { path: '/calendar', element: <CalendarView /> },
   { path: '/attendance', element: <AttendancePage /> },
   { path: '/files', element: <FileLibrary /> },
+  { path: '/tenant', element: <TenantManagement /> },
   { path: '/agile/dashboard', element: <AgileDashboard /> },
   { path: '/agile/board', element: <SprintBoard /> },
   { path: '/agile/plan', element: <SprintPlan /> },
@@ -122,13 +129,16 @@ function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, isLoggedIn, isLoading } = useAuth();
+  const { currentTenant, tenants, switchTenant } = useTenant();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [role, setRole] = useState(() => user?.role || localStorage.getItem('app-role') || 'mentor');
   const [unreadCount, setUnreadCount] = useState(0);
+  const [tenantMenuOpen, setTenantMenuOpen] = useState(false);
   const handleRoleChange = (next) => { setRole(next); localStorage.setItem('app-role', next); };
   const searchRef = useRef(null);
+  const tenantMenuRef = useRef(null);
 
   // Poll unread notifications
   useEffect(() => {
@@ -152,6 +162,18 @@ function AppContent() {
       localStorage.setItem('app-role', user.role);
     }
   }, [user?.role, role]);
+
+  // 点击外部关闭租户菜单
+  useEffect(() => {
+    if (!tenantMenuOpen) return;
+    const handler = (e) => {
+      if (tenantMenuRef.current && !tenantMenuRef.current.contains(e.target)) {
+        setTenantMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [tenantMenuOpen]);
 
   const pages = role === 'mentor' ? mentorPages : studentPages;
   const defaultPath = role === 'mentor' ? '/' : '/agile/dashboard';
@@ -203,6 +225,43 @@ function AppContent() {
               <button onClick={() => setSearchOpen(true)} className="btn-ghost p-2 rounded-lg text-slate-400 hover:text-slate-600">
                 <Search className="w-4 h-4" />
               </button>
+              {/* Tenant Switcher */}
+              {tenants.length > 0 && (
+                <div className="relative" ref={tenantMenuRef}>
+                  <button
+                    onClick={() => setTenantMenuOpen(v => !v)}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-slate-600 hover:bg-slate-100 transition-colors"
+                  >
+                    <Building2 className="w-4 h-4 text-slate-400" />
+                    <span className="max-w-[140px] truncate">{currentTenant?.name || '选择课题组'}</span>
+                    <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${tenantMenuOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {tenantMenuOpen && (
+                    <div className="absolute left-0 top-full mt-1 w-64 bg-white rounded-xl shadow-lg border border-slate-100 py-1 z-50"
+                      style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
+                      <div className="px-3 py-2 text-xs text-slate-400 font-medium">切换课题组</div>
+                      {tenants.map(t => (
+                        <button
+                          key={t.id}
+                          onClick={() => { switchTenant(t.id); setTenantMenuOpen(false); }}
+                          className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between hover:bg-slate-50 transition-colors ${String(t.id) === String(currentTenant?.id) ? 'bg-orange-50 text-orange-700' : 'text-slate-700'}`}
+                        >
+                          <span className="truncate">{t.name}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 capitalize">{t.tenant_role}</span>
+                        </button>
+                      ))}
+                      <div className="border-t border-slate-100 mt-1 pt-1">
+                        <button
+                          onClick={() => { navigate('/tenant'); setTenantMenuOpen(false); }}
+                          className="w-full text-left px-3 py-2 text-sm text-orange-600 hover:bg-orange-50 transition-colors"
+                        >
+                          课题组管理 →
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <button onClick={() => navigate('/notifications')} className="btn-ghost p-2 rounded-lg relative text-slate-400 hover:text-slate-600">
@@ -299,15 +358,17 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <ProjectProvider>
-          <ToastProvider>
-            <ErrorBoundary>
-              <div className="flex min-h-screen" style={{ background: 'var(--bg-page)' }}>
-                <AppContent />
-              </div>
-            </ErrorBoundary>
-          </ToastProvider>
-        </ProjectProvider>
+        <TenantProvider>
+          <ProjectProvider>
+            <ToastProvider>
+              <ErrorBoundary>
+                <div className="flex min-h-screen" style={{ background: 'var(--bg-page)' }}>
+                  <AppContent />
+                </div>
+              </ErrorBoundary>
+            </ToastProvider>
+          </ProjectProvider>
+        </TenantProvider>
       </AuthProvider>
     </ThemeProvider>
   );

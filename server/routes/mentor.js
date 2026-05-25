@@ -9,6 +9,10 @@ const wrap = (fn) => (req, res) => {
   try { fn(req, res); } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
+function getTenantId(req) {
+  return Number(req.headers['x-tenant-id'] || req.query.tenant_id || 1);
+}
+
 function getStudentAgileProjectId(studentId) {
   const link = queryOne('SELECT agile_project_id FROM student_projects WHERE student_id = ? LIMIT 1', [studentId]);
   return link ? link.agile_project_id : null;
@@ -61,17 +65,20 @@ export function getMentorRoutes(app) {
   // Dashboard
   app.get('/api/mentor/dashboard', (req, res) => {
     try {
+      const tenantId = getTenantId(req);
       const mentorId = req.query.mentor_id || DEFAULT_MENTOR_ID;
       const studentCount = queryOne(
-        'SELECT COUNT(*) as count FROM mentor_student_relations WHERE mentor_id = ? AND status = ?',
-        [mentorId, 'active']
+        `SELECT COUNT(*) as count FROM mentor_student_relations msr
+         JOIN students s ON msr.student_id = s.id
+         WHERE s.tenant_id = ? AND msr.mentor_id = ? AND msr.status = ?`,
+        [tenantId, mentorId, 'active']
       ).count;
 
       const activeStudents = queryAll(
         `SELECT s.* FROM students s
          JOIN mentor_student_relations msr ON s.id = msr.student_id
-         WHERE msr.mentor_id = ? AND msr.status = ? AND s.status = ?`,
-        [mentorId, 'active', 'active']
+         WHERE s.tenant_id = ? AND msr.mentor_id = ? AND msr.status = ? AND s.status = ?`,
+        [tenantId, mentorId, 'active', 'active']
       );
 
       const studentIds = activeStudents.map(s => s.id);
@@ -98,14 +105,14 @@ export function getMentorRoutes(app) {
         `SELECT rs.*, s.name as student_name FROM review_stages rs
          JOIN students s ON rs.student_id = s.id
          JOIN mentor_student_relations msr ON s.id = msr.student_id
-         WHERE msr.mentor_id = ? AND rs.status IN ('pending','in_progress')
+         WHERE s.tenant_id = ? AND msr.mentor_id = ? AND rs.status IN ('pending','in_progress')
          ORDER BY rs.scheduled_date ASC LIMIT 5`,
-        [mentorId]
+        [tenantId, mentorId]
       );
 
       const recentMeetings = queryAll(
-        'SELECT * FROM meeting_records WHERE mentor_id = ? ORDER BY meeting_date DESC LIMIT 5',
-        [mentorId]
+        'SELECT * FROM meeting_records WHERE tenant_id = ? AND mentor_id = ? ORDER BY meeting_date DESC LIMIT 5',
+        [tenantId, mentorId]
       );
 
       res.json({
@@ -122,14 +129,15 @@ export function getMentorRoutes(app) {
   // Students
   app.get('/api/mentor/students', (req, res) => {
     try {
+      const tenantId = getTenantId(req);
       const mentorId = req.query.mentor_id || DEFAULT_MENTOR_ID;
       const students = queryAll(
         `SELECT s.*, msr.relation_type, msr.start_date
          FROM students s
          JOIN mentor_student_relations msr ON s.id = msr.student_id
-         WHERE msr.mentor_id = ? AND msr.status = ?
+         WHERE s.tenant_id = ? AND msr.mentor_id = ? AND msr.status = ?
          ORDER BY s.created_at DESC`,
-        [mentorId, 'active']
+        [tenantId, mentorId, 'active']
       );
       res.json(students);
     } catch (e) {
@@ -139,17 +147,18 @@ export function getMentorRoutes(app) {
 
   app.get('/api/mentor/students/:id', (req, res) => {
     try {
-      const student = queryOne('SELECT * FROM students WHERE id = ?', [req.params.id]);
+      const tenantId = getTenantId(req);
+      const student = queryOne('SELECT * FROM students WHERE tenant_id = ? AND id = ?', [tenantId, req.params.id]);
       if (!student) return res.status(404).json({ error: 'Student not found' });
-      const tasks = queryAll('SELECT * FROM mentor_tasks WHERE student_id = ? ORDER BY created_at DESC LIMIT 100', [req.params.id]);
-      const reviews = queryAll('SELECT * FROM review_stages WHERE student_id = ? ORDER BY scheduled_date ASC LIMIT 50', [req.params.id]);
-      const achievements = queryAll('SELECT * FROM achievements WHERE student_id = ? ORDER BY created_at DESC LIMIT 50', [req.params.id]);
-      const allMeetings = queryAll(`SELECT * FROM meeting_records WHERE mentor_id = ? ORDER BY meeting_date DESC`, [DEFAULT_MENTOR_ID]);
+      const tasks = queryAll('SELECT * FROM mentor_tasks WHERE tenant_id = ? AND student_id = ? ORDER BY created_at DESC LIMIT 100', [tenantId, req.params.id]);
+      const reviews = queryAll('SELECT * FROM review_stages WHERE tenant_id = ? AND student_id = ? ORDER BY scheduled_date ASC LIMIT 50', [tenantId, req.params.id]);
+      const achievements = queryAll('SELECT * FROM achievements WHERE tenant_id = ? AND student_id = ? ORDER BY created_at DESC LIMIT 50', [tenantId, req.params.id]);
+      const allMeetings = queryAll(`SELECT * FROM meeting_records WHERE tenant_id = ? AND mentor_id = ? ORDER BY meeting_date DESC`, [tenantId, DEFAULT_MENTOR_ID]);
       const studentIdNum = +req.params.id;
       const meetings = allMeetings.filter(m => {
         try { return JSON.parse(m.student_ids || '[]').includes(studentIdNum); } catch { return false; }
       });
-      const activityLogs = queryAll('SELECT * FROM activity_logs WHERE entity_type = ? AND entity_id = ? ORDER BY created_at DESC LIMIT 20', ['student', req.params.id]);
+      const activityLogs = queryAll('SELECT * FROM activity_logs WHERE tenant_id = ? AND entity_type = ? AND entity_id = ? ORDER BY created_at DESC LIMIT 20', [tenantId, 'student', req.params.id]);
       res.json({ student, tasks, reviews, achievements, meetings, activityLogs });
     } catch (e) {
       res.status(500).json({ error: e.message });
@@ -165,15 +174,16 @@ export function getMentorRoutes(app) {
     (req, res) => {
     try {
       const { name, email, student_id, grade, major, research_topic, enrollment_date, expected_graduation } = req.body;
+      const tenantId = getTenantId(req);
       const result = run(
-        `INSERT INTO students (name, email, student_id, grade, major, research_topic, enrollment_date, expected_graduation)
+        `INSERT INTO students (tenant_id, name, email, student_id, grade, major, research_topic, enrollment_date, expected_graduation)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [name, email || null, student_id || null, grade || null, major || null, research_topic || null, enrollment_date || null, expected_graduation || null]
+        [tenantId, name, email || null, student_id || null, grade || null, major || null, research_topic || null, enrollment_date || null, expected_graduation || null]
       );
       const mentorId = req.body.mentor_id || DEFAULT_MENTOR_ID;
       run(
-        'INSERT INTO mentor_student_relations (mentor_id, student_id, relation_type, start_date) VALUES (?, ?, ?, ?)',
-        [mentorId, result.lastInsertRowid, 'master', enrollment_date || new Date().toISOString().split('T')[0]]
+        'INSERT INTO mentor_student_relations (tenant_id, mentor_id, student_id, relation_type, start_date) VALUES (?, ?, ?, ?, ?)',
+        [tenantId, mentorId, result.lastInsertRowid, 'master', enrollment_date || new Date().toISOString().split('T')[0]]
       );
       res.json({ id: result.lastInsertRowid, name });
     } catch (e) {
@@ -207,11 +217,12 @@ export function getMentorRoutes(app) {
   // Tasks
   app.get('/api/mentor/tasks', (req, res) => {
     try {
+      const tenantId = getTenantId(req);
       const mentorId = req.query.mentor_id || DEFAULT_MENTOR_ID;
       const studentId = req.query.student_id;
       let sql = `SELECT mt.*, s.name as student_name FROM mentor_tasks mt
-                 JOIN students s ON mt.student_id = s.id WHERE mt.mentor_id = ?`;
-      const params = [mentorId];
+                 JOIN students s ON mt.student_id = s.id WHERE mt.tenant_id = ? AND mt.mentor_id = ?`;
+      const params = [tenantId, mentorId];
       if (studentId) { sql += ' AND mt.student_id = ?'; params.push(studentId); }
       sql += ' ORDER BY mt.created_at DESC';
       res.json(queryAll(sql, params));

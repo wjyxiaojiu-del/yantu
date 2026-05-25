@@ -24,6 +24,8 @@ async function request(url, options = {}) {
     }
     const token = typeof window !== 'undefined' ? localStorage.getItem('auth-token') : null;
     if (token) headers['Authorization'] = `Bearer ${token}`;
+    const tenantId = typeof window !== 'undefined' ? localStorage.getItem('tenant-id') : null;
+    if (tenantId) headers['X-Tenant-Id'] = tenantId;
     const res = await fetch(`${BASE}${url}`, { headers, ...options });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
@@ -170,6 +172,23 @@ const api = {
   register: (data) => request('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
   getMe: GET('/auth/me'),
   logout: () => request('/auth/logout', { method: 'POST' }),
+
+  // Reports
+  getReportDashboard: () => request('/reports/dashboard'),
+  getStudentReport: (id) => request(`/reports/student/${id}`),
+
+  // Tenant
+  getMyTenants: () => request('/tenants/my'),
+  createTenant: (data) => request('/tenants', { method: 'POST', body: JSON.stringify(data) }),
+  getTenant: (id) => request(`/tenants/${id}`),
+  updateTenant: (id, data) => request(`/tenants/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  createInvite: (id, data) => request(`/tenants/${id}/invites`, { method: 'POST', body: JSON.stringify(data) }),
+  getInvites: (id) => request(`/tenants/${id}/invites`),
+  deleteInvite: (tenantId, inviteId) => request(`/tenants/${tenantId}/invites/${inviteId}`, { method: 'DELETE' }),
+  joinTenant: (code) => request('/tenants/join', { method: 'POST', body: JSON.stringify({ code }) }),
+  updateMemberRole: (tenantId, userId, data) => request(`/tenants/${tenantId}/members/${userId}`, { method: 'PUT', body: JSON.stringify(data) }),
+  removeMember: (tenantId, userId) => request(`/tenants/${tenantId}/members/${userId}`, { method: 'DELETE' }),
+  leaveTenant: (id) => request(`/tenants/${id}/leave`, { method: 'POST' }),
 
   // Backup
   downloadBackup: () => fetch('/api/backup', {

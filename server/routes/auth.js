@@ -86,6 +86,23 @@ function getUserByToken(token) {
   return row || null;
 }
 
+// ============ Helpers ============
+
+function toSafeUser(user) {
+  const { id, phone, email, name, role, avatar, student_id, department, title } = user;
+  return { id, phone, email, name, role, avatar, student_id, department, title };
+}
+
+function getUserTenants(userId) {
+  return queryAll(`
+    SELECT t.id, t.name, t.slug, t.plan, tm.role as tenant_role
+    FROM tenants t
+    JOIN tenant_members tm ON t.id = tm.tenant_id
+    WHERE tm.user_id = ?
+    ORDER BY t.created_at DESC
+  `, [userId]);
+}
+
 // ============ Routes ============
 
 export function getAuthRoutes(app) {
@@ -141,8 +158,9 @@ export function getAuthRoutes(app) {
         [phone, email || null, passwordHash, name, role, student_id || null, department || null, title || null]
       );
       const token = createToken(result.lastInsertRowid);
-      const user = queryOne('SELECT id, phone, email, name, role, avatar, student_id, department, title FROM users WHERE id = ?', [result.lastInsertRowid]);
-      res.json({ success: true, token, user });
+      const user = queryOne('SELECT * FROM users WHERE id = ?', [result.lastInsertRowid]);
+      run('INSERT OR IGNORE INTO tenant_members (tenant_id, user_id, role) VALUES (1, ?, ?)', [result.lastInsertRowid, role]);
+      res.json({ success: true, token, user: toSafeUser(user), tenants: getUserTenants(result.lastInsertRowid) });
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
@@ -168,8 +186,7 @@ export function getAuthRoutes(app) {
         return res.status(401).json({ error: '手机号或密码错误' });
       }
       const token = createToken(user.id);
-      const safeUser = { id: user.id, phone: user.phone, email: user.email, name: user.name, role: user.role, avatar: user.avatar, student_id: user.student_id, department: user.department, title: user.title };
-      res.json({ success: true, token, user: safeUser });
+      res.json({ success: true, token, user: toSafeUser(user), tenants: getUserTenants(user.id) });
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
@@ -199,8 +216,7 @@ export function getAuthRoutes(app) {
         user = queryOne('SELECT * FROM users WHERE id = ?', [result.lastInsertRowid]);
       }
       const token = createToken(user.id);
-      const safeUser = { id: user.id, phone: user.phone, email: user.email, name: user.name, role: user.role, avatar: user.avatar, student_id: user.student_id, department: user.department, title: user.title };
-      res.json({ success: true, token, user: safeUser });
+      res.json({ success: true, token, user: toSafeUser(user), tenants: getUserTenants(user.id) });
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
@@ -215,8 +231,7 @@ export function getAuthRoutes(app) {
       if (!user) {
         return res.status(401).json({ error: '未登录或登录已过期' });
       }
-      const safeUser = { id: user.id, phone: user.phone, email: user.email, name: user.name, role: user.role, avatar: user.avatar, student_id: user.student_id, department: user.department, title: user.title };
-      res.json({ user: safeUser });
+      res.json({ user: toSafeUser(user), tenants: getUserTenants(user.id) });
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
