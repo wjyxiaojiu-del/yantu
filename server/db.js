@@ -381,6 +381,62 @@ function createTables() {
     created_by INTEGER NOT NULL,
     created_at TEXT DEFAULT (datetime('now'))
   )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS weekly_reports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id INTEGER NOT NULL,
+    student_id INTEGER NOT NULL,
+    week_start TEXT NOT NULL,
+    week_end TEXT NOT NULL,
+    period_label TEXT,
+    status TEXT DEFAULT 'draft',
+    attendance_days INTEGER DEFAULT 0,
+    total_work_hours REAL DEFAULT 0,
+    completed_tasks INTEGER DEFAULT 0,
+    pending_tasks INTEGER DEFAULT 0,
+    overdue_tasks INTEGER DEFAULT 0,
+    new_literature INTEGER DEFAULT 0,
+    meetings_attended INTEGER DEFAULT 0,
+    new_achievements INTEGER DEFAULT 0,
+    summary TEXT,
+    content TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS papers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id INTEGER NOT NULL,
+    student_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    author TEXT,
+    abstract TEXT,
+    keywords TEXT,
+    file_path TEXT NOT NULL,
+    file_name TEXT,
+    file_size INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'draft',
+    ai_summary TEXT,
+    ai_score INTEGER,
+    version INTEGER DEFAULT 1,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS paper_reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    paper_id INTEGER NOT NULL,
+    reviewer_id INTEGER,
+    reviewer_name TEXT DEFAULT '导师',
+    content TEXT NOT NULL,
+    section TEXT,
+    page INTEGER,
+    status TEXT DEFAULT 'open',
+    created_at TEXT DEFAULT (datetime('now'))
+  )`);
+
+  // === Performance Indexes ===
+  createIndexes();
 }
 
 export function saveDB(immediate = false) {
@@ -475,6 +531,28 @@ export function migrateTenantColumns() {
   for (const table of TABLES_NEEDING_TENANT) {
     try { db.run(`ALTER TABLE ${table} ADD COLUMN tenant_id INTEGER DEFAULT 1`); }
     catch (e) { if (!e.message?.includes('duplicate')) console.warn(`[Migrate] ${table}:`, e.message); }
+  }
+}
+
+function createIndexes() {
+  const indexes = [
+    'CREATE INDEX IF NOT EXISTS idx_students_tenant_status ON students(tenant_id, status)',
+    'CREATE INDEX IF NOT EXISTS idx_tasks_tenant_student ON mentor_tasks(tenant_id, student_id, status)',
+    'CREATE INDEX IF NOT EXISTS idx_tasks_deadline ON mentor_tasks(tenant_id, deadline)',
+    'CREATE INDEX IF NOT EXISTS idx_reviews_tenant_student ON review_stages(tenant_id, student_id, status)',
+    'CREATE INDEX IF NOT EXISTS idx_meetings_tenant_date ON meeting_records(tenant_id, meeting_date)',
+    'CREATE INDEX IF NOT EXISTS idx_achievements_tenant_student ON achievements(tenant_id, student_id)',
+    'CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read)',
+    'CREATE INDEX IF NOT EXISTS idx_attendance_user_time ON attendance_records(user_id, check_in_time)',
+    'CREATE INDEX IF NOT EXISTS idx_attendance_student ON attendance_records(student_id)',
+    'CREATE INDEX IF NOT EXISTS idx_files_tenant ON files(tenant_id)',
+    'CREATE INDEX IF NOT EXISTS idx_weekly_reports_tenant ON weekly_reports(tenant_id, student_id, week_start)',
+    'CREATE INDEX IF NOT EXISTS idx_papers_tenant ON papers(tenant_id, student_id)',
+    'CREATE INDEX IF NOT EXISTS idx_tenant_members_user ON tenant_members(user_id)',
+    'CREATE INDEX IF NOT EXISTS idx_mentor_student_relations ON mentor_student_relations(mentor_id, student_id, status)',
+  ];
+  for (const sql of indexes) {
+    try { db.run(sql); } catch (e) { console.warn('[Index]', e.message); }
   }
 }
 

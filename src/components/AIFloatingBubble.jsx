@@ -60,7 +60,6 @@ export default function AIFloatingBubble() {
           style={{
             background: 'linear-gradient(135deg, var(--accent), var(--accent-light))',
             boxShadow: '0 4px 20px var(--accent-300), 0 0 40px var(--accent-100)',
-            animation: 'slideUp .5s var(--spring-bounce)',
           }}>
           <Sparkles size={22} />
         </button>
@@ -75,7 +74,6 @@ export default function AIFloatingBubble() {
             backdropFilter: 'blur(40px) saturate(200%)',
             border: '1px solid rgba(255,255,255,0.8)',
             boxShadow: '0 8px 40px rgba(0,0,0,0.12), 0 0 0 1px rgba(255,255,255,0.5)',
-            animation: 'slideUp .3s var(--spring-bounce)',
           }}>
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b"
@@ -120,8 +118,7 @@ export default function AIFloatingBubble() {
               </div>
             )}
             {messages.map(msg => (
-              <div key={msg.id} className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                style={{ animation: 'slideUp .2s var(--spring-bounce)' }}>
+              <div key={msg.id} className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 {msg.role === 'assistant' && (
                   <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mt-1"
                     style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent-light))' }}>

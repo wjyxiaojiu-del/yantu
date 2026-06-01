@@ -71,7 +71,7 @@ export default function Meetings() {
   return (
     <div className="space-y-5 max-w-[1400px]">
       {/* Header */}
-      <div className="flex items-end justify-between" style={{ animation: 'slideUp .5s var(--spring-bounce)' }}>
+      <div className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
             <MessageSquare size={24} className="text-orange-500" />
@@ -86,7 +86,7 @@ export default function Meetings() {
 
       {/* Upcoming Meetings */}
       {upcoming.length > 0 && (
-        <div className="card p-5" style={{ animation: 'slideUp .5s var(--spring-bounce) .05s both' }}>
+        <div className="card p-5">
           <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
             <Calendar size={14} className="text-orange-500" />
             即将到来的会议
@@ -115,8 +115,7 @@ export default function Meetings() {
           {meetings.map((m, i) => {
             const isPast = new Date(m.meeting_date) < new Date();
             return (
-              <div key={m.id} className="relative pl-12 group"
-                style={{ animation: `slideInRight .4s var(--spring-bounce) ${i * 50}ms both` }}>
+              <div key={m.id} className="relative pl-12 group">
                 <div className="absolute left-[11px] top-5 w-[15px] h-[15px] rounded-full border-2 flex items-center justify-center"
                   style={{
                     borderColor: isPast ? 'rgba(203,213,225,0.5)' : c.accent,
@@ -193,7 +192,7 @@ export default function Meetings() {
           })}
 
           {meetings.length === 0 && (
-            <div className="card text-center py-16" style={{ animation: 'slideUp .4s var(--spring-bounce)' }}>
+            <div className="card text-center py-16">
               <MessageSquare size={48} className="text-slate-200 mx-auto mb-3" />
               <div className="text-sm text-slate-400">暂无会议记录</div>
               <div className="text-xs text-slate-300 mt-1">点击「新建记录」开始记录与导师的沟通</div>

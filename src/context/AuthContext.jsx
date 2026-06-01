@@ -15,8 +15,6 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const token = getToken();
     if (!token) {
-      setUser({ id: 1, name: '演示导师', role: 'mentor', phone: '13800138000' });
-      setToken('demo-token');
       setIsLoading(false);
       return;
     }
@@ -24,6 +22,13 @@ export function AuthProvider({ children }) {
       .then(data => { if (data.user) setUser(withTenants(data)); })
       .catch(() => setToken(null))
       .finally(() => setIsLoading(false));
+  }, []);
+
+  // 监听全局 401 事件：token 过期或被注销时强制下线
+  useEffect(() => {
+    const handler = () => { setUser(null); };
+    window.addEventListener('auth:unauthorized', handler);
+    return () => window.removeEventListener('auth:unauthorized', handler);
   }, []);
 
   const login = useCallback(async (phone, password) => {

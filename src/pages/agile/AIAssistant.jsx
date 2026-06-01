@@ -167,7 +167,7 @@ export default function AIAssistant() {
   return (
     <div className="flex flex-col h-[calc(100vh-3rem)] max-w-[1400px]">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4" style={{ animation: 'slideUp .5s var(--spring-bounce)' }}>
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
             <Sparkles size={24} className="text-orange-500" />
@@ -220,8 +220,7 @@ export default function AIAssistant() {
             )}
 
             {messages.map((msg) => (
-              <div key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                style={{ animation: 'slideUp .3s var(--spring-bounce)' }}>
+              <div key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 {msg.role === 'assistant' && (
                   <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
                     style={{
@@ -270,7 +269,7 @@ export default function AIAssistant() {
             ))}
 
             {loading && (
-              <div className="flex gap-3" style={{ animation: 'slideUp .3s var(--spring-bounce)' }}>
+              <div className="flex gap-3">
                 <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
                   style={{
                     background: 'linear-gradient(135deg, var(--accent), var(--accent-light))',
@@ -338,7 +337,7 @@ export default function AIAssistant() {
         </div>
 
         {/* Quick Actions Sidebar */}
-        <div className="w-[280px] flex-shrink-0 space-y-3" style={{ animation: 'slideUp .5s var(--spring-bounce) .1s both' }}>
+        <div className="w-[280px] flex-shrink-0 space-y-3">
           <div className="card p-4">
             <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
               <Sparkles size={14} className="text-orange-500" />

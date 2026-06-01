@@ -9,11 +9,10 @@ const COLORS = ['#f97316', '#6366f1', '#10b981', '#f59e0b', '#3b82f6', '#ec4899'
 const PRIORITY_COLORS = { urgent: '#ef4444', high: '#f97316', medium: '#f59e0b', low: '#10b981' };
 const TT = { borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' };
 const AXIS_STYLE = { fontSize: 12, fill: '#94a3b8' };
-const ANIM = (d = 0) => ({ animation: `slideUp .5s var(--spring-bounce) ${d}s both` });
 
 function StatCard({ icon: Icon, label, value, sub, color, delay }) {
   return (
-    <div className="card p-4 flex items-start gap-3" style={{ animation: `slideUp .5s var(--spring-bounce) ${delay}s both` }}>
+    <div className="card p-4 flex items-start gap-3">
       <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${color}12` }}>
         <Icon size={20} style={{ color }} />
       </div>
@@ -65,7 +64,7 @@ export default function ReportDashboard() {
 
   return (
     <div className="max-w-[1400px] mx-auto">
-      <div className="flex items-center justify-between mb-6" style={{ animation: 'slideUp .5s var(--spring-bounce)' }}>
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
             <BarChart3 size={24} className="text-orange-500" />
@@ -89,7 +88,7 @@ export default function ReportDashboard() {
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
         {/* Paper Trend */}
-        <div className="card p-5 lg:col-span-2" style={ANIM(.1)}>
+        <div className="card p-5 lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold text-slate-700">学术产出趋势</h3>
             <span className="text-xs text-slate-400">按年度统计</span>
@@ -106,7 +105,7 @@ export default function ReportDashboard() {
         </div>
 
         {/* Grade Distribution */}
-        <div className="card p-5" style={ANIM(.15)}>
+        <div className="card p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold text-slate-700">学生年级分布</h3>
           </div>
@@ -144,7 +143,7 @@ export default function ReportDashboard() {
       {/* Second Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
         {/* Task Priority */}
-        <div className="card p-5" style={ANIM(.2)}>
+        <div className="card p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold text-slate-700">任务优先级分布</h3>
           </div>
@@ -164,7 +163,7 @@ export default function ReportDashboard() {
         </div>
 
         {/* Enrollment Trend */}
-        <div className="card p-5" style={ANIM(.25)}>
+        <div className="card p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold text-slate-700">入学趋势</h3>
           </div>
@@ -187,7 +186,7 @@ export default function ReportDashboard() {
       </div>
 
       {/* Warnings Panel */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5" style={ANIM(.3)}>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* High Risk */}
         <div className="card p-5">
           <div className="flex items-center gap-2 mb-4">

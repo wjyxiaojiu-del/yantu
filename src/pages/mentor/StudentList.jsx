@@ -4,6 +4,7 @@ import { Users, Search, Plus, GraduationCap, Filter, BookOpen, Calendar, Downloa
 import api from '../../api';
 import { useToast } from '../../components/Toast';
 import Modal from '../../components/Modal';
+import { SkeletonCard } from '../../components/Skeleton';
 
 export default function StudentList() {
   const [students, setStudents] = useState([]);
@@ -133,14 +134,15 @@ export default function StudentList() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-20"><div className="w-8 h-8 border-2 border-slate-200 border-t-[var(--accent)] rounded-full animate-spin" /></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((student, i) => {
             const achCount = getAchievementCount(student.id);
             return (
-              <div key={student.id} className="card p-5 group"
-                style={{ animation: `staggerFadeIn .4s var(--spring-bounce) ${i * 60}ms both` }}>
+              <div key={student.id} className="card p-5 group">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3">
                     <div className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold shrink-0"

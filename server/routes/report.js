@@ -1,16 +1,17 @@
 import { Router } from 'express';
 import { queryAll, queryOne } from '../db.js';
+import { wrap } from '../middleware/wrap.js';
+import { getTenantId } from '../middleware/tenant.js';
 
 const router = Router();
-const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
-function getTenantId(req) {
-  return Number(req.headers['x-tenant-id'] || req.query.tenant_id || 1);
+function getTid(req) {
+  return req.tenantId || getTenantId(req);
 }
 
 // GET /api/reports/dashboard
 router.get('/dashboard', wrap((req, res) => {
-  const tenantId = getTenantId(req);
+  const tenantId = getTid(req);
 
   // === Students ===
   const totalStudents = queryOne('SELECT COUNT(*) as c FROM students WHERE tenant_id = ? AND status = ?', [tenantId, 'active']).c;
@@ -48,8 +49,8 @@ router.get('/dashboard', wrap((req, res) => {
   const taskStats = queryOne(`
     SELECT
       COUNT(*) as total,
-      COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed,
-      COUNT(CASE WHEN status = 'pending' AND deadline < date('now') THEN 1 END) as overdue
+      COUNT(CASE WHEN mt.status = 'completed' THEN 1 END) as completed,
+      COUNT(CASE WHEN mt.status = 'pending' AND mt.deadline < date('now') THEN 1 END) as overdue
     FROM mentor_tasks mt
     JOIN students s ON mt.student_id = s.id
     WHERE s.tenant_id = ?
@@ -67,7 +68,7 @@ router.get('/dashboard', wrap((req, res) => {
 
   // === Attendance ===
   const attendanceThisMonth = queryOne(`
-    SELECT COUNT(DISTINCT user_id) as people, SUM(work_hours) as hours
+    SELECT COUNT(DISTINCT ar.user_id) as people, SUM(ar.work_hours) as hours
     FROM attendance_records ar
     JOIN users u ON ar.user_id = u.id
     JOIN tenant_members tm ON u.id = tm.user_id
@@ -130,7 +131,7 @@ router.get('/dashboard', wrap((req, res) => {
 
 // GET /api/reports/student/:id - 个人成长报告
 router.get('/student/:id', wrap((req, res) => {
-  const tenantId = getTenantId(req);
+  const tenantId = getTid(req);
   const studentId = Number(req.params.id);
 
   const student = queryOne('SELECT * FROM students WHERE tenant_id = ? AND id = ?', [tenantId, studentId]);
@@ -140,7 +141,7 @@ router.get('/student/:id', wrap((req, res) => {
   const tasks = queryAll('SELECT * FROM mentor_tasks WHERE student_id = ? ORDER BY created_at DESC', [studentId]);
   const reviews = queryAll('SELECT * FROM review_stages WHERE student_id = ? ORDER BY scheduled_date ASC', [studentId]);
   const attendance = queryAll('SELECT * FROM attendance_records WHERE student_id = ? ORDER BY check_in_time DESC LIMIT 50', [studentId]);
-  const meetings = queryAll(`SELECT * FROM meeting_records WHERE mentor_id = ? ORDER BY meeting_date DESC`, [1]);
+  const meetings = queryAll('SELECT * FROM meeting_records WHERE tenant_id = ? ORDER BY meeting_date DESC', [tenantId]);
   const studentMeetings = meetings.filter(m => {
     try { return JSON.parse(m.student_ids || '[]').includes(studentId); } catch { return false; }
   });

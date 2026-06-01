@@ -107,7 +107,7 @@ export default function Risks() {
 
   return (
     <div className="space-y-5 max-w-[1400px]">
-      <div className="flex items-end justify-between" style={{ animation: 'slideUp .5s var(--spring-bounce)' }}>
+      <div className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">风险管控</h1>
           <p className="text-sm text-slate-400 mt-1">识别、评估与跟踪项目风险</p>
@@ -125,7 +125,7 @@ export default function Risks() {
       </div>
 
       {/* Risk Matrix */}
-      <div className="card p-5" style={{ animation: 'slideUp .5s var(--spring-bounce) .05s both' }}>
+      <div className="card p-5">
         <h3 className="text-sm font-semibold text-slate-800 mb-4 flex items-center gap-2"><Shield size={15} className="text-orange-500" /> 风险评估矩阵</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-center text-xs">
@@ -149,7 +149,7 @@ export default function Risks() {
                     const text = cell.level === 'high' ? 'text-red-600' : cell.level === 'medium' ? 'text-amber-600' : 'text-emerald-600';
                     return (
                       <td key={cell.imp} className={`py-3 px-2 ${text} rounded-lg cursor-default font-bold`}
-                        style={{ background: bg, animation: `scaleIn .3s var(--spring-bounce) ${ri * 30 + ci * 20}ms both`, transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+                        style={{ background: bg, transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
                         onMouseEnter={e => e.currentTarget.style.background = hoverBg}
                         onMouseLeave={e => e.currentTarget.style.background = bg}>
                         <div>{cell.score}</div>
@@ -170,7 +170,7 @@ export default function Risks() {
       </div>
 
       {/* Risk List */}
-      <div className="card overflow-hidden" style={{ animation: 'slideUp .5s var(--spring-bounce) .1s both' }}>
+      <div className="card overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr style={{ background: 'rgba(241,245,249,0.5)' }}>
@@ -190,8 +190,7 @@ export default function Risks() {
           </thead>
           <tbody>
             {risks.map((r, i) => (
-              <tr key={r.id} className={`table-row group ${selected.has(r.id) ? 'bg-orange-50/30' : ''}`}
-                style={{ animation: `slideInRight .3s var(--spring-bounce) ${i * 40}ms both` }}>
+              <tr key={r.id} className={`table-row group ${selected.has(r.id) ? 'bg-orange-50/30' : ''}`}>
                 <td className="px-4 py-3.5">
                   <button onClick={() => toggleSelect(r.id)}
                     className={`transition-all duration-300 ${selected.has(r.id) ? 'text-orange-500 scale-110' : 'text-slate-300 hover:text-orange-400'}`}

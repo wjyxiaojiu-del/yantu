@@ -146,7 +146,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6 max-w-[1400px]">
       {/* Header */}
-      <div className="flex items-end justify-between" style={{ animation: 'slideUp .5s var(--spring-bounce)' }}>
+      <div className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">控制台</h1>
           <p className="text-sm text-slate-400 mt-1">「研途启航」项目运行状态总览</p>
@@ -168,7 +168,7 @@ export default function Dashboard() {
 
       {/* Charts Row */}
       <div className="grid grid-cols-5 gap-4">
-        <div className="card col-span-3 p-5" style={{ animation: 'slideUp .5s var(--spring-bounce) .15s both' }}>
+        <div className="card col-span-3 p-5">
           <div className="flex items-center justify-between mb-5">
             <div>
               <h3 className="text-sm font-semibold text-slate-800">燃尽图</h3>
@@ -197,7 +197,7 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </div>
 
-        <div className="card col-span-2 p-5" style={{ animation: 'slideUp .5s var(--spring-bounce) .2s both' }}>
+        <div className="card col-span-2 p-5">
           <h3 className="text-sm font-semibold text-slate-800 mb-1">迭代工作量</h3>
           <p className="text-xs text-slate-400 mb-5">各迭代计划 vs 完成</p>
           <ResponsiveContainer width="100%" height={220}>
@@ -215,7 +215,7 @@ export default function Dashboard() {
 
       {/* Bottom Row */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="card p-5" style={{ animation: 'slideUp .5s var(--spring-bounce) .25s both' }}>
+        <div className="card p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-slate-800 flex items-center gap-2"><Calendar size={15} className="text-orange-500" />里程碑</h3>
             <div className="flex items-center gap-3">
@@ -227,7 +227,7 @@ export default function Dashboard() {
           </div>
           <div className="space-y-3">
             {milestones.map((m, i) => (
-              <div key={m.id} className="group/ms" style={{ animation: `slideInRight .35s var(--spring-bounce) ${i * 60}ms both` }}>
+              <div key={m.id} className="group/ms">
                 <div className="flex items-center gap-3">
                   <button onClick={() => handleToggleMilestone(m)} className="flex items-center gap-3 flex-1 min-w-0 text-left group">
                     <div className="relative flex-shrink-0">
@@ -261,15 +261,14 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="card p-5" style={{ animation: 'slideUp .5s var(--spring-bounce) .3s both' }}>
+        <div className="card p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-slate-800 flex items-center gap-2"><AlertTriangle size={15} className="text-amber-500" />风险概览</h3>
             <span className="text-xs text-slate-400">{risks.length} 个风险</span>
           </div>
           <div className="space-y-2.5">
             {risks.slice(0, 5).map((r, i) => (
-              <div key={r.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-orange-50/20 transition-all duration-300 group"
-                style={{ animation: `slideInRight .35s var(--spring-bounce) ${i * 60 + 100}ms both` }}>
+              <div key={r.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-orange-50/20 transition-all duration-300 group">
                 <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 transition-all duration-300 ${r.level === 'high' ? 'bg-red-500 shadow-sm shadow-red-200' : r.level === 'medium' ? 'bg-amber-500 shadow-sm shadow-amber-200' : 'bg-emerald-500 shadow-sm shadow-emerald-200'}`} />
                 <div className="flex-1 min-w-0">
                   <div className="text-sm text-slate-700 truncate group-hover:text-slate-900 transition-colors">{r.title}</div>
@@ -349,7 +348,7 @@ function StatCard({ icon, iconClass, label, value, sub, color, trend, delay = 0 
   const c = colors[color] || colors.indigo;
 
   return (
-    <div className="stat-card group" style={{ animation: `slideUp .5s var(--spring-bounce) ${delay * 0.08}s both` }}>
+    <div className="stat-card group">
       <div className="flex items-start justify-between mb-3">
         <span className="text-xs font-medium text-slate-400 uppercase tracking-wide">{label}</span>
         <div className={`w-10 h-10 rounded-xl ${c.text} flex items-center justify-center group-hover:scale-110 group-hover:shadow-lg transition-all duration-500`}
@@ -357,7 +356,7 @@ function StatCard({ icon, iconClass, label, value, sub, color, trend, delay = 0 
           <span className={iconClass}>{icon}</span>
         </div>
       </div>
-      <div className="text-2xl font-bold text-slate-900 tracking-tight animate-countUp">{value}</div>
+      <div className="text-2xl font-bold text-slate-900 tracking-tight">{value}</div>
       <div className="flex items-center justify-between mt-1.5">
         <span className="text-xs text-slate-400">{sub}</span>
         {trend !== null && trend !== undefined && (

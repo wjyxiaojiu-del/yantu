@@ -143,7 +143,7 @@ export default function TenantManagement() {
 
   return (
     <div className="max-w-[1200px] mx-auto">
-      <div className="flex items-center justify-between mb-6" style={{ animation: 'slideUp .5s var(--spring-bounce)' }}>
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
             <Building2 size={24} className="text-orange-500" />
@@ -159,7 +159,7 @@ export default function TenantManagement() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Left Sidebar */}
-        <div className="space-y-5" style={{ animation: 'slideUp .5s var(--spring-bounce) .05s both' }}>
+        <div className="space-y-5">
           <div className="card p-5">
             <div className="flex items-start justify-between mb-4">
               <div>
@@ -205,7 +205,7 @@ export default function TenantManagement() {
         </div>
 
         {/* Center */}
-        <div className="lg:col-span-2 space-y-5" style={{ animation: 'slideUp .5s var(--spring-bounce) .1s both' }}>
+        <div className="lg:col-span-2 space-y-5">
           {/* Members */}
           <div className="card p-5">
             <div className="flex items-center justify-between mb-4">
@@ -258,7 +258,7 @@ export default function TenantManagement() {
 
           {/* Invites */}
           {canManage && detail?.tenant?.invites?.length > 0 && (
-            <div className="card p-5" style={{ animation: 'slideUp .5s var(--spring-bounce) .15s both' }}>
+            <div className="card p-5">
               <h3 className="text-sm font-bold text-slate-700 mb-4">邀请码</h3>
               <div className="space-y-2">
                 {detail.tenant.invites.map(invite => (

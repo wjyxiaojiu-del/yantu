@@ -10,12 +10,14 @@ import { useAuth } from '../context/AuthContext';
 import api from '../api';
 
 const mentorNavItems = [
-  { path: '/', label: '导师总览', icon: LayoutDashboard },
+  { path: '/overview', label: '总览', icon: LayoutDashboard },
+  { path: '/', label: '工作台', icon: LayoutDashboard },
   { path: '/students', label: '学生管理', icon: Users },
   { path: '/tasks', label: '任务指派', icon: ClipboardList },
   { path: '/meetings', label: '组会管理', icon: CalendarCheck },
   { path: '/reviews', label: '节点评审', icon: Award },
   { path: '/achievements', label: '学术成果', icon: Trophy },
+  { path: '/papers', label: '论文审阅', icon: BookOpen },
   { path: '/calendar', label: '日程日历', icon: CalendarIcon },
   { path: '/attendance', label: '考勤打卡', icon: Clock },
   { path: '/files', label: '文件资料库', icon: FolderOpen },
@@ -32,6 +34,7 @@ const studentNavItems = [
   { path: '/agile/literature', label: '文献管理', icon: BookOpen },
   { path: '/agile/report', label: '项目报告', icon: FileBarChart },
   { path: '/agile/my-tasks', label: '我的任务', icon: ClipboardList },
+  { path: '/papers', label: '我的论文', icon: BookOpen },
   { path: '/calendar', label: '日程日历', icon: CalendarIcon },
   { path: '/attendance', label: '考勤打卡', icon: Clock },
   { path: '/files', label: '文件资料库', icon: FolderOpen },
@@ -105,7 +108,7 @@ export default function MentorSidebar({ role, onRoleChange, mobileOpen, onMobile
           <GraduationCap size={20} className="text-white relative z-10" />
         </div>
         <div>
-          <h1 className="text-sm font-bold text-white tracking-tight">导师工作台</h1>
+          <h1 className="text-sm font-bold text-white tracking-tight">科研工作台</h1>
           <p className="text-[10px] text-white/60 font-medium flex items-center gap-1">
             <Sparkles size={9} /> Mentor System
           </p>
@@ -117,7 +120,7 @@ export default function MentorSidebar({ role, onRoleChange, mobileOpen, onMobile
         <button onClick={toggleRole}
           className="flex items-center gap-2 w-full text-white/70 hover:text-white transition-colors text-xs font-medium">
           <Repeat size={14} />
-          <span>{role === 'mentor' ? '导师工作台' : '学生工作台'}</span>
+          <span>{role === 'mentor' ? '导师版' : '学生版'}</span>
           <span className="ml-auto text-[10px] text-white/40">切换</span>
         </button>
       </div>
@@ -131,7 +134,6 @@ export default function MentorSidebar({ role, onRoleChange, mobileOpen, onMobile
             to={item.path}
             end={item.path === '/'}
             className={({ isActive }) => `sidebar-nav-item ${isActive ? 'active' : ''}`}
-            style={{ animation: `staggerFadeIn .4s var(--spring-bounce) ${i * 50}ms both` }}
             onClick={onMobileClose}
           >
             <item.icon size={17} strokeWidth={2} />
@@ -182,7 +184,6 @@ export default function MentorSidebar({ role, onRoleChange, mobileOpen, onMobile
               background: 'rgba(255,255,255,0.95)',
               backdropFilter: 'blur(20px)',
               boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
-              animation: 'slideDown 0.3s var(--spring-bounce) both',
             }}>
             <div className="p-2 space-y-1">
               {themes.map((t) => (
@@ -228,11 +229,12 @@ export default function MentorSidebar({ role, onRoleChange, mobileOpen, onMobile
                 <div className="text-[10px] text-white/50">{user?.title || (role === 'mentor' ? '博士生导师' : '在读研究生')}</div>
               </div>
             </div>
-            <button onClick={logout}
+            {/* 演示模式下隐藏退出登录按钮 */}
+            {/* <button onClick={logout}
               className="mt-2 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] font-medium text-white/40 hover:text-white/70 hover:bg-white/5 transition-all">
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
               退出登录
-            </button>
+            </button> */}
           </>
         ) : (
           <form onSubmit={handleLogin} className="space-y-2">

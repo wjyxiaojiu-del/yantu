@@ -1,7 +1,7 @@
 import { queryAll, queryOne } from '../db.js';
 
 // Auth helper (shared with auth.js pattern)
-function getUserByToken(token) {
+export function getUserByToken(token) {
   if (!token) return null;
   const row = queryOne(
     `SELECT u.* FROM users u
@@ -130,6 +130,16 @@ export function checkLimit(resource) {
 
     next();
   };
+}
+
+// Shared helper: extract tenant_id from request headers/query
+export function getTenantId(req) {
+  return Number(req.headers['x-tenant-id'] || req.query.tenant_id || 1);
+}
+
+export function toSafeUser(user) {
+  const { id, phone, email, name, role, avatar, student_id, department, title } = user;
+  return { id, phone, email, name, role, avatar, student_id, department, title };
 }
 
 

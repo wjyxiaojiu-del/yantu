@@ -29,12 +29,16 @@ router.put('/', async (req, res) => {
   if (id === 'batch') {
     const { updates } = req.body;
     if (!updates || !Array.isArray(updates)) return res.status(400).json({ error: 'updates array required' });
-    const db = getDB();
-    updates.forEach(u => {
-      db.run('UPDATE agile_tasks SET status = ?, sort_order = ? WHERE id = ?', [u.status, u.sort_order, u.id]);
-    });
-    saveDB();
-    return res.json({ ok: true });
+    try {
+      const db = getDB();
+      updates.forEach(u => {
+        db.run('UPDATE agile_tasks SET status = ?, sort_order = ? WHERE id = ?', [u.status, u.sort_order, u.id]);
+      });
+      saveDB();
+      return res.json({ ok: true });
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
   }
 
   // Single update: PUT /tasks?id=123

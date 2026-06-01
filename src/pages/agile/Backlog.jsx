@@ -117,7 +117,7 @@ export default function Backlog() {
   return (
     <div className="space-y-5 max-w-[1400px]">
       {/* Header */}
-      <div className="flex items-end justify-between" style={{ animation: 'slideUp .5s var(--spring-bounce)' }}>
+      <div className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">事件待办</h1>
           <p className="text-sm text-slate-400 mt-1">管理所有事件与待办事项</p>
@@ -135,7 +135,7 @@ export default function Backlog() {
       </div>
 
       {/* Toolbar */}
-      <div className="card p-3 flex items-center gap-3" style={{ animation: 'slideUp .5s var(--spring-bounce) .05s both' }}>
+      <div className="card p-3 flex items-center gap-3">
         <div className="relative flex-1 max-w-xs">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" />
           <input value={search} onChange={e => setSearch(e.target.value)} className="input pl-9 py-2" placeholder="搜索事件..." />
@@ -162,7 +162,7 @@ export default function Backlog() {
       </div>
 
       {/* Stories List */}
-      <div className="card overflow-hidden" style={{ animation: 'slideUp .5s var(--spring-bounce) .1s both' }}>
+      <div className="card overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr style={{ background: 'rgba(241,245,249,0.5)' }}>
@@ -182,8 +182,7 @@ export default function Backlog() {
           </thead>
           <tbody>
             {filtered.map((st, i) => (
-              <tr key={st.id} className={`table-row group ${selected.has(st.id) ? 'bg-orange-50/30' : ''}`}
-                style={{ animation: `slideInRight .3s var(--spring-bounce) ${i * 30}ms both` }}>
+              <tr key={st.id} className={`table-row group ${selected.has(st.id) ? 'bg-orange-50/30' : ''}`}>
                 <td className="px-4 py-3.5">
                   <button onClick={() => toggleSelect(st.id)}
                     className={`transition-all duration-300 ${selected.has(st.id) ? 'text-orange-500 scale-110' : 'text-slate-300 hover:text-orange-400'}`}

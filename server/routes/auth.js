@@ -1,6 +1,7 @@
 import { randomBytes, pbkdf2Sync, randomUUID } from 'crypto';
 import { queryAll, queryOne, run } from '../db.js';
 import { validateBody, Patterns } from '../middleware/validate.js';
+import { getUserByToken, toSafeUser } from '../middleware/tenant.js';
 
 const TOKEN_TTL_DAYS = 7;
 const SMS_COOLDOWN_SECONDS = 60;
@@ -74,24 +75,7 @@ function createToken(userId) {
   return token;
 }
 
-function getUserByToken(token) {
-  if (!token) return null;
-  const row = queryOne(
-    `SELECT u.* FROM users u
-     JOIN auth_tokens t ON u.id = t.user_id
-     WHERE t.token = ? AND t.expires_at > datetime('now')
-     LIMIT 1`,
-    [token]
-  );
-  return row || null;
-}
-
 // ============ Helpers ============
-
-function toSafeUser(user) {
-  const { id, phone, email, name, role, avatar, student_id, department, title } = user;
-  return { id, phone, email, name, role, avatar, student_id, department, title };
-}
 
 function getUserTenants(userId) {
   return queryAll(`
@@ -105,9 +89,9 @@ function getUserTenants(userId) {
 
 // ============ Routes ============
 
-export function getAuthRoutes(app) {
+export function getAuthRoutes(app, smsLimiter) {
   // POST /api/auth/send-sms
-  app.post('/api/auth/send-sms', (req, res) => {
+  app.post('/api/auth/send-sms', smsLimiter, (req, res) => {
     try {
       const { phone, purpose = 'register' } = req.body;
       if (!phone || !/^1[3-9]\d{9}$/.test(phone)) {
@@ -120,7 +104,8 @@ export function getAuthRoutes(app) {
       run('INSERT INTO sms_codes (phone, code, purpose, expires_at) VALUES (?, ?, ?, ?)',
         [phone, code, purpose, getSmsExpiryDate()]);
       console.log(`[SMS] 手机号: ${phone}, 验证码: ${code}, 用途: ${purpose}`);
-      res.json({ success: true, message: '验证码已发送', code });
+      const isDev = process.env.NODE_ENV !== 'production';
+      res.json({ success: true, message: '验证码已发送', ...(isDev ? { code } : {}) });
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
@@ -214,6 +199,8 @@ export function getAuthRoutes(app) {
         const result = run('INSERT INTO users (phone, password_hash, name, role) VALUES (?, ?, ?, ?)',
           [phone, passwordHash, `用户${phone.slice(-4)}`, 'student']);
         user = queryOne('SELECT * FROM users WHERE id = ?', [result.lastInsertRowid]);
+        // Add to default tenant
+        run('INSERT OR IGNORE INTO tenant_members (tenant_id, user_id, role) VALUES (1, ?, ?)', [result.lastInsertRowid, 'student']);
       }
       const token = createToken(user.id);
       res.json({ success: true, token, user: toSafeUser(user), tenants: getUserTenants(user.id) });
@@ -250,16 +237,4 @@ export function getAuthRoutes(app) {
       res.status(500).json({ error: e.message });
     }
   });
-}
-
-// Middleware for protected routes
-export function requireAuth(req, res, next) {
-  const authHeader = req.headers.authorization || '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-  const user = getUserByToken(token);
-  if (!user) {
-    return res.status(401).json({ error: '未登录或登录已过期' });
-  }
-  req.user = user;
-  next();
 }

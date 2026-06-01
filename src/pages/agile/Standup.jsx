@@ -108,7 +108,7 @@ export default function Standup() {
 
   return (
     <div className="space-y-5 max-w-[1400px]">
-      <div className="flex items-end justify-between" style={{ animation: 'slideUp .5s var(--spring-bounce)' }}>
+      <div className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">每日日程</h1>
           <p className="text-sm text-slate-400 mt-1">记录每日工作计划与进展</p>
@@ -127,7 +127,7 @@ export default function Standup() {
       </div>
 
       {/* Today Overview */}
-      <div className="card-glass p-5" style={{ animation: 'slideUp .5s var(--spring-bounce) .05s both' }}>
+      <div className="card-glass p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold text-sm"
@@ -190,8 +190,7 @@ export default function Standup() {
             const today = isToday(log.date);
             const older = new Date(log.date) < new Date(today);
             return (
-              <div key={log.id} className="relative pl-12 group"
-                style={{ animation: `slideInRight .4s var(--spring-bounce) ${i * 50}ms both` }}>
+              <div key={log.id} className="relative pl-12 group">
                 {/* Timeline dot */}
                 <div className="absolute left-[11px] top-5 w-[15px] h-[15px] rounded-full border-2 flex items-center justify-center transition-all duration-300"
                   style={{

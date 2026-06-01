@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Trophy, Plus, Search, Filter, FileText, Award, FlaskConical, Zap, Edit2, Trash2, ExternalLink, Loader2 } from 'lucide-react';
+import { Trophy, Plus, Search, Filter, FileText, Award, FlaskConical, Zap, Edit2, Trash2, ExternalLink, Loader2, Download } from 'lucide-react';
 import api from '../../api';
 import { useToast } from '../../components/Toast';
 import Modal from '../../components/Modal';
+import { SkeletonCard } from '../../components/Skeleton';
 
 const typeConfig = {
   paper: { label: '论文', icon: FileText, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' },
@@ -82,8 +83,12 @@ export default function AchievementManager() {
           <h1 className="text-2xl font-bold text-gradient-warm">学术成果</h1>
           <p className="text-sm text-slate-400 mt-1">管理学生的论文、专利、项目和竞赛成果</p>
         </div>
-        <button onClick={() => { setEditing(null); setForm({ student_id: '', title: '', achievement_type: 'paper', journal_or_conference: '', publish_date: '', doi_or_link: '', status: 'published', notes: '' }); setShowAdd(true); }}
-          className="btn btn-primary"><Plus className="w-4 h-4" /> 添加成果</button>
+        <div className="flex gap-2">
+          <button onClick={() => { setEditing(null); setForm({ student_id: '', title: '', achievement_type: 'paper', journal_or_conference: '', publish_date: '', doi_or_link: '', status: 'published', notes: '' }); setShowAdd(true); }}
+            className="btn btn-primary"><Plus className="w-4 h-4" /> 添加成果</button>
+          <button onClick={() => api.downloadCsv(api.exportAchievementsCsvUrl).catch(e => toast.error('导出失败：' + e.message))}
+            className="btn btn-secondary"><Download className="w-4 h-4" /> 导出CSV</button>
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -104,7 +109,9 @@ export default function AchievementManager() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-20"><div className="w-8 h-8 border-2 border-slate-200 border-t-[var(--accent)] rounded-full animate-spin" /></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((a, i) => {
@@ -113,8 +120,7 @@ export default function AchievementManager() {
             const Icon = tcfg.icon;
             const scfg = statusConfig[a.status] || statusConfig.draft;
             return (
-              <div key={a.id} className="card p-5 group"
-                style={{ animation: `staggerFadeIn .4s var(--spring-bounce) ${i * 60}ms both` }}>
+              <div key={a.id} className="card p-5 group">
                 <div className="flex items-start justify-between mb-3">
                   <div className={`flex items-center gap-2 px-2.5 py-1 rounded-lg text-xs font-medium ${tcfg.bg} ${tcfg.color} border ${tcfg.border}`}>
                     <Icon className="w-3.5 h-3.5" /> {tcfg.label}

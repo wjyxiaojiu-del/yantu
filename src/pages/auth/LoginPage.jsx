@@ -78,7 +78,7 @@ export default function LoginPage() {
             style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', boxShadow: '0 8px 24px rgba(99,102,241,0.3)' }}>
             <GraduationCap size={28} className="text-white" />
           </div>
-          <h1 className="text-xl font-bold text-slate-800">导师工作台</h1>
+          <h1 className="text-xl font-bold text-slate-800">科研工作台</h1>
           <p className="text-xs text-slate-400 mt-1">统一科研项目管理平台</p>
         </div>
 

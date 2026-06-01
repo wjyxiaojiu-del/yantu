@@ -114,7 +114,7 @@ export default function MyTasks() {
 
   return (
     <div className="space-y-5 max-w-[1400px]">
-      <div style={{ animation: 'slideUp .5s var(--spring-bounce)' }}>
+      <div>
         <h1 className="text-2xl font-bold text-slate-900 tracking-tight">我的任务</h1>
         <p className="text-sm text-slate-400 mt-1">导师指派 + 项目看板，统一视图</p>
       </div>
@@ -127,7 +127,7 @@ export default function MyTasks() {
           { label: '已逾期', value: stats.overdue, icon: AlertTriangle, color: '#ef4444' },
           { label: '即将到期', value: stats.dueSoon, icon: Clock, color: '#f59e0b' },
         ].map((s, i) => (
-          <div key={s.label} className="stat-card" style={{ animation: `slideUp .5s var(--spring-bounce) ${i * 0.06}s both` }}>
+          <div key={s.label} className="stat-card">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wide">{s.label}</span>
               <s.icon size={16} style={{ color: s.color }} />
@@ -165,7 +165,7 @@ export default function MyTasks() {
           const isExpanded = expandedId === task.id;
           return (
             <div key={task.id} className="card overflow-hidden"
-              style={{ animation: `staggerFadeIn .35s var(--spring-bounce) ${i * 30}ms both`, borderLeft: isOverdue ? '3px solid #ef4444' : '3px solid transparent' }}>
+              style={{ borderLeft: isOverdue ? '3px solid #ef4444' : '3px solid transparent' }}>
               <div className="flex items-center gap-3 p-4 cursor-pointer hover:bg-slate-50/40 transition-all"
                 onClick={() => setExpandedId(isExpanded ? null : task.id)}>
                 <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all
@@ -198,7 +198,7 @@ export default function MyTasks() {
                 </div>
               </div>
               {isExpanded && task.description && (
-                <div className="px-4 pb-4 pt-0 border-t border-slate-50" style={{ animation: 'slideDown 0.2s ease' }}>
+                <div className="px-4 pb-4 pt-0 border-t border-slate-50">
                   <p className="text-sm text-slate-500 mt-3">{task.description}</p>
                 </div>
               )}

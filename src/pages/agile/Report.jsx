@@ -124,7 +124,7 @@ export default function Report() {
 
   return (
     <div className="space-y-5 max-w-[1400px]">
-      <div className="flex items-end justify-between" style={{ animation: 'slideUp .5s var(--spring-bounce)' }}>
+      <div className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">项目报告</h1>
           <p className="text-sm text-slate-400 mt-1">自动生成的项目概况与复盘数据</p>
@@ -151,9 +151,9 @@ export default function Report() {
           { label: '任务完成率', value: `${stats.totalTasks ? Math.round(stats.doneTasks / stats.totalTasks * 100) : 0}%`, sub: `${stats.doneTasks}/${stats.totalTasks} 个`, gradient: 'linear-gradient(135deg, rgba(245,158,11,0.06), rgba(245,158,11,0.12))' },
           { label: '交付物进度', value: `${doneDeliverables}/${deliverables.length}`, sub: `已勾选 ${doneDeliverables} 项`, gradient: 'linear-gradient(135deg, rgba(244,63,94,0.06), rgba(244,63,94,0.12))' },
         ].map((s, i) => (
-          <div key={i} className="stat-card" style={{ animation: `slideUp .5s var(--spring-bounce) ${i * 0.08}s both` }}>
+          <div key={i} className="stat-card">
             <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wide">{s.label}</span>
-            <div className="text-2xl font-bold text-slate-900 mt-1 animate-countUp">{s.value}</div>
+            <div className="text-2xl font-bold text-slate-900 mt-1">{s.value}</div>
             <span className="text-xs text-slate-400">{s.sub}</span>
           </div>
         ))}
@@ -161,7 +161,7 @@ export default function Report() {
 
       {/* AI Summary */}
       {aiSummary && (
-        <div className="card p-5" style={{ animation: 'slideUp .4s var(--spring-bounce)', borderLeft: '3px solid var(--accent)' }}>
+        <div className="card p-5" style={{ borderLeft: '3px solid var(--accent)' }}>
           <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
             <Sparkles size={14} style={{ color: 'var(--accent)' }} /> AI 汇报摘要
           </h3>
@@ -171,7 +171,7 @@ export default function Report() {
 
       <div className="grid grid-cols-2 gap-4">
         {/* Sprint Summary */}
-        <div className="card p-5" style={{ animation: 'slideUp .5s var(--spring-bounce) .15s both' }}>
+        <div className="card p-5">
           <h3 className="text-sm font-semibold text-slate-800 mb-4 flex items-center gap-2"><BarChart3 size={15} className="text-orange-500" /> 迭代完成情况</h3>
           <div className="space-y-4">
             {sprints.map((s, i) => {
@@ -180,7 +180,7 @@ export default function Report() {
               const total = ss.length;
               const pct = total ? Math.round(done / total * 100) : 0;
               return (
-                <div key={s.id} style={{ animation: `slideInRight .35s var(--spring-bounce) ${i * 80}ms both` }}>
+                <div key={s.id}>
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-sm font-medium text-slate-700">S{s.number}：{s.name.replace(/Sprint \d+：/, '')}</span>
                     <span className="text-xs text-slate-400">{done}/{total} ({pct}%)</span>
@@ -193,7 +193,7 @@ export default function Report() {
                         boxShadow: `0 0 10px ${c.accent100}`,
                         transition: 'width 1s cubic-bezier(0.22, 1, 0.36, 1)',
                       }}>
-                      <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)', animation: 'shimmerBar 2s infinite' }} />
+                      <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)' }} />
                     </div>
                   </div>
                 </div>
@@ -203,12 +203,11 @@ export default function Report() {
         </div>
 
         {/* Milestones */}
-        <div className="card p-5" style={{ animation: 'slideUp .5s var(--spring-bounce) .2s both' }}>
+        <div className="card p-5">
           <h3 className="text-sm font-semibold text-slate-800 mb-4 flex items-center gap-2"><Award size={15} className="text-amber-500" /> 里程碑达成</h3>
           <div className="space-y-2.5">
             {milestones.map((m, i) => (
-              <div key={m.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-orange-50/20 transition-all duration-300 group"
-                style={{ animation: `slideInRight .35s var(--spring-bounce) ${i * 80}ms both` }}>
+              <div key={m.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-orange-50/20 transition-all duration-300 group">
                 {m.status === 'completed' ? <CheckCircle2 size={18} className="text-emerald-500 flex-shrink-0 group-hover:scale-110 transition-transform duration-300" /> : <Circle size={18} className="text-slate-300 flex-shrink-0" />}
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-slate-700 group-hover:text-slate-900 transition-colors">{m.name}</div>
@@ -224,7 +223,7 @@ export default function Report() {
       </div>
 
       {/* Deliverables */}
-      <div className="card p-5" style={{ animation: 'slideUp .5s var(--spring-bounce) .25s both' }}>
+      <div className="card p-5">
         <h3 className="text-sm font-semibold text-slate-800 mb-4 flex items-center gap-2"><FileText size={15} className="text-orange-500" /> 交付物清单</h3>
         <div className="grid grid-cols-2 gap-2">
           {deliverables.map((d, i) => (
@@ -234,7 +233,6 @@ export default function Report() {
                 background: d.checked ? 'linear-gradient(135deg, rgba(16,185,129,0.06), rgba(16,185,129,0.1))' : 'rgba(241,245,249,0.3)',
                 border: `1px solid ${d.checked ? 'rgba(16,185,129,0.2)' : 'transparent'}`,
                 transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                animation: `slideUp .3s var(--spring-bounce) ${i * 40}ms both`,
               }}
               onMouseEnter={e => { if (!d.checked) e.currentTarget.style.background = 'rgba(241,245,249,0.5)'; }}
               onMouseLeave={e => { if (!d.checked) e.currentTarget.style.background = 'rgba(241,245,249,0.3)'; }}>
@@ -247,7 +245,7 @@ export default function Report() {
       </div>
 
       {/* Risk Summary */}
-      <div className="card p-5" style={{ animation: 'slideUp .5s var(--spring-bounce) .3s both' }}>
+      <div className="card p-5">
         <h3 className="text-sm font-semibold text-slate-800 mb-4">风险概况</h3>
         <div className="grid grid-cols-3 gap-4">
           {[
@@ -258,10 +256,10 @@ export default function Report() {
             const count = risks.filter(r => r.level === level).length;
             return (
               <div key={level} className="relative overflow-hidden rounded-xl p-5 text-center transition-all duration-500 group"
-                style={{ background: gradient, animation: `scaleIn .4s var(--spring-bounce) ${0.3 + i * 0.05}s both` }}
+                style={{ background: gradient }}
                 onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px) scale(1.02)'; e.currentTarget.style.boxShadow = `0 8px 24px ${glow}`; }}
                 onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0) scale(1)'; e.currentTarget.style.boxShadow = 'none'; }}>
-                <div className={`text-3xl font-bold ${text} animate-countUp`}>{count}</div>
+                <div className={`text-3xl font-bold ${text}`}>{count}</div>
                 <div className="text-xs text-slate-500 mt-1">{label}</div>
               </div>
             );

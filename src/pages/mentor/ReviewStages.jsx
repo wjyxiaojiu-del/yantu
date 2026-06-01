@@ -3,6 +3,7 @@ import { Award, Plus, Search, Filter, Calendar, CheckCircle2, Star, FileText, Tr
 import api from '../../api';
 import { useToast } from '../../components/Toast';
 import Modal from '../../components/Modal';
+import { SkeletonCard } from '../../components/Skeleton';
 
 export default function ReviewStages() {
   const [reviews, setReviews] = useState([]);
@@ -136,8 +137,7 @@ export default function ReviewStages() {
       </div>
 
       {selectedIds.size > 0 && (
-        <div className="flex items-center gap-3 p-3 rounded-xl bg-white/60 border border-white/80 backdrop-blur-lg"
-          style={{ animation: 'slideDown 0.3s var(--spring-bounce) both' }}>
+        <div className="flex items-center gap-3 p-3 rounded-xl bg-white/60 border border-white/80 backdrop-blur-lg">
           <span className="text-sm text-slate-600 font-medium">已选中 {selectedIds.size} 项</span>
           <div className="flex-1" />
           <button onClick={handleBatchPass} className="btn btn-success text-xs py-1.5 px-3">
@@ -150,12 +150,13 @@ export default function ReviewStages() {
       )}
 
       {loading ? (
-        <div className="flex justify-center py-20"><div className="w-8 h-8 border-2 border-slate-200 border-t-[var(--accent)] rounded-full animate-spin" /></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filtered.map((review, i) => (
-            <div key={review.id} className="card p-5 group"
-              style={{ animation: `staggerFadeIn .4s var(--spring-bounce) ${i * 60}ms both` }}>
+            <div key={review.id} className="card p-5 group">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className={`badge ${stageColors[review.stage_type] || 'badge-c'}`}>{stageLabels[review.stage_type] || review.stage_type}</span>

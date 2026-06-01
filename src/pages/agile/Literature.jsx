@@ -110,7 +110,7 @@ export default function Literature() {
   return (
     <div className="space-y-5 max-w-[1400px]">
       {/* Header */}
-      <div className="flex items-end justify-between" style={{ animation: 'slideUp .5s var(--spring-bounce)' }}>
+      <div className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
             <BookOpen size={24} className="text-orange-500" />
@@ -124,7 +124,7 @@ export default function Literature() {
       </div>
 
       {/* Stats Bar */}
-      <div className="flex items-center gap-4" style={{ animation: 'slideUp .5s var(--spring-bounce) .05s both' }}>
+      <div className="flex items-center gap-4">
         {Object.entries(STATUS_MAP).map(([key, val]) => {
           const count = items.filter(i => i.status === key).length;
           return (
@@ -144,7 +144,7 @@ export default function Literature() {
       </div>
 
       {/* Search & Filters */}
-      <div className="flex items-center gap-3" style={{ animation: 'slideUp .5s var(--spring-bounce) .1s both' }}>
+      <div className="flex items-center gap-3">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
@@ -176,7 +176,6 @@ export default function Literature() {
           <div
             key={item.id}
             className="card p-4 group cursor-pointer hover:shadow-lg transition-all duration-300"
-            style={{ animation: `slideUp .4s var(--spring-bounce) ${i * 0.04}s both` }}
             onClick={() => setDetailItem(item)}>
             <div className="flex items-start justify-between mb-3">
               <div className={`badge text-[10px] ${STATUS_MAP[item.status]?.bg} ${STATUS_MAP[item.status]?.color}`}>
@@ -228,7 +227,7 @@ export default function Literature() {
       </div>
 
       {filteredItems.length === 0 && (
-        <div className="card text-center py-16" style={{ animation: 'slideUp .4s var(--spring-bounce)' }}>
+        <div className="card text-center py-16">
           <BookOpen size={48} className="text-slate-200 mx-auto mb-3" />
           <div className="text-sm text-slate-400">暂无文献</div>
           <div className="text-xs text-slate-300 mt-1">点击「添加文献」开始构建你的知识库</div>

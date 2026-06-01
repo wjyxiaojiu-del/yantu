@@ -6,6 +6,7 @@ import {
 import api from '../../api';
 import { useToast } from '../../components/Toast';
 import Modal from '../../components/Modal';
+import { SkeletonCard } from '../../components/Skeleton';
 
 export default function MeetingManager() {
   const [meetings, setMeetings] = useState([]);
@@ -131,7 +132,9 @@ export default function MeetingManager() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-20"><div className="w-8 h-8 border-2 border-slate-200 border-t-[var(--accent)] rounded-full animate-spin" /></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
       ) : viewMode === 'calendar' ? (
         <div className="card p-5">
           <div className="flex items-center justify-between mb-5">
@@ -182,8 +185,7 @@ export default function MeetingManager() {
             let ids = []; try { ids = JSON.parse(meeting.student_ids || '[]'); } catch {}
             const meetingStudents = students.filter(s => ids.includes(s.id));
             return (
-              <div key={meeting.id} className="card p-5"
-                style={{ animation: `staggerFadeIn .4s var(--spring-bounce) ${i * 60}ms both` }}>
+              <div key={meeting.id} className="card p-5">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center"

@@ -26,8 +26,7 @@ const QuickAction = memo(function QuickAction({ icon: Icon, label, desc, to, col
   const navigate = useNavigate();
   return (
     <button onClick={() => navigate(to)}
-      className="card p-4 text-left hover:shadow-lg transition-all group"
-      style={{ animation: `staggerFadeIn .4s var(--spring-bounce) ${delay}ms both` }}>
+      className="card p-4 text-left hover:shadow-lg transition-all group">
       <div className="flex items-center gap-3 mb-2">
         <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: color + '15' }}>
           <Icon size={18} style={{ color }} />
@@ -193,7 +192,7 @@ export default function MentorDashboard() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gradient-warm">导师工作台</h1>
+          <h1 className="text-2xl font-bold text-gradient-warm">科研工作台</h1>
           <p className="text-sm text-slate-400 mt-1">全面掌握研究生培养进展</p>
         </div>
         <div className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl bg-white/60 border border-white/80 backdrop-blur-lg">
@@ -208,8 +207,7 @@ export default function MentorDashboard() {
           const Icon = card.icon;
           return (
             <button key={card.label} onClick={() => navigate(card.path)}
-              className="stat-card group text-left"
-              style={{ animation: `countUp 0.5s var(--spring-bounce) ${i * 100}ms both` }}>
+              className="stat-card group text-left">
               <div className="flex items-center justify-between mb-3">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center"
                   style={{ background: `linear-gradient(135deg, var(--accent-100), var(--accent-50))` }}>
@@ -217,7 +215,7 @@ export default function MentorDashboard() {
                 </div>
                 <ArrowRight className="w-4 h-4 text-slate-300 opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0" />
               </div>
-              <p className="text-2xl font-bold text-slate-800" style={{ animation: `countUp 0.6s var(--spring-bounce) ${i * 100 + 200}ms both` }}>
+              <p className="text-2xl font-bold text-slate-800">
                 {card.value}
               </p>
               <p className="text-xs text-slate-400 mt-0.5">{card.label}</p>
@@ -304,7 +302,6 @@ export default function MentorDashboard() {
                   style={{
                     background: `${alert.color}06`,
                     border: `1px solid ${alert.color}15`,
-                    animation: `staggerFadeIn .4s var(--spring-bounce) ${i * 60}ms both`
                   }}>
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${alert.color}12` }}>
                     <Icon size={16} style={{ color: alert.color }} />
@@ -335,8 +332,7 @@ export default function MentorDashboard() {
           <div className="space-y-2">
             {students.slice(0, 5).map((student, i) => (
               <Link key={student.id} to={`/students/${student.id}`}
-                className="flex items-center gap-4 p-3 rounded-xl hover:bg-slate-50/80 transition-all group"
-                style={{ animation: `staggerFadeIn .4s var(--spring-bounce) ${i * 60}ms both` }}>
+                className="flex items-center gap-4 p-3 rounded-xl hover:bg-slate-50/80 transition-all group">
                 <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
                   style={{ background: `linear-gradient(135deg, var(--logo-from), var(--logo-to))` }}>
                   {student.name?.[0]}

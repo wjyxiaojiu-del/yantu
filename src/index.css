@@ -67,6 +67,7 @@
       radial-gradient(ellipse 50% 50% at 50% 50%, var(--bg-gradient-to), transparent);
     pointer-events: none;
     z-index: 0;
+    transform: translateZ(0);
   }
   ::selection { background: var(--selection-bg); color: white; }
   ::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -84,6 +85,7 @@
     @apply rounded-2xl border border-white/80;
     box-shadow: 0 1px 2px rgba(0,0,0,0.03), 0 4px 16px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.8);
     transition: all 0.4s var(--spring-bounce);
+    transform: translateZ(0);
   }
   .card:hover {
     box-shadow: 0 4px 8px rgba(0,0,0,0.04), 0 12px 40px var(--card-shadow), inset 0 1px 0 rgba(255,255,255,0.9);
@@ -112,6 +114,7 @@
   .btn-secondary {
     @apply bg-white/80 text-slate-700 border border-slate-200/60;
     backdrop-filter: blur(16px);
+    transform: translateZ(0);
   }
   .btn-secondary:hover {
     @apply bg-white border-slate-300;
@@ -154,6 +157,7 @@
     outline: none;
     transition: all 0.35s var(--spring-bounce);
     color: var(--text-primary);
+    transform: translateZ(0);
   }
   .input:focus {
     border-color: var(--input-focus);
@@ -176,6 +180,7 @@
     padding-right: 36px;
     transition: all 0.35s var(--spring-bounce);
     color: var(--text-primary);
+    transform: translateZ(0);
   }
   .select:focus {
     border-color: var(--input-focus);
@@ -258,6 +263,7 @@
     background: rgba(15,23,42,0.25);
     backdrop-filter: blur(20px);
     animation: fadeIn 0.3s ease;
+    transform: translateZ(0);
   }
   .modal-panel {
     @apply relative rounded-2xl flex flex-col;
@@ -267,6 +273,7 @@
     box-shadow: 0 24px 80px rgba(0,0,0,0.12), 0 8px 24px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,1);
     animation: modalBounceIn 0.5s var(--spring-bounce);
     max-height: 85vh;
+    transform: translateZ(0);
   }
 
   /* === Toast === */
@@ -274,8 +281,7 @@
   .toast-exit { animation: toastBounceOut 0.35s var(--spring-smooth) both; }
 
   /* === Page Transition === */
-  .page-enter { animation: pageEnter 0.5s var(--spring-smooth); }
-
+  
   /* === Progress === */
   .progress-glow { position: relative; overflow: hidden; }
   .progress-glow::after {
@@ -305,7 +311,7 @@
 
 /* === Keyframes === */
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes pageEnter { from { opacity: 0; transform: translateY(16px) scale(0.99); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes pageEnter { from, to { opacity: 1; transform: none; } }
 @keyframes shimmerBar { 0% { left: -100%; } 100% { left: 200%; } }
 @keyframes modalBounceIn {
   0% { opacity: 0; transform: scale(0.85) translateY(30px); }
@@ -323,23 +329,6 @@
   0% { opacity: 1; transform: translateX(0) scale(1); }
   100% { opacity: 0; transform: translateX(60px) scale(0.8); }
 }
-@keyframes staggerFadeIn {
-  from { opacity: 0; transform: translateY(12px) scale(0.97); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(20px) scale(0.97); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-@keyframes slideDown {
-  from { opacity: 0; transform: translateY(-12px) scale(0.97); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-@keyframes countUp {
-  from { opacity: 0; transform: translateY(10px) scale(0.95); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-@keyframes progressBar { from { width: 0%; } }
 
 /* === Theme Utility Classes === */
 .text-theme { color: var(--accent) !important; }

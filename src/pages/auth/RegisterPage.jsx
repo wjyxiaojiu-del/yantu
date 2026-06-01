@@ -79,7 +79,7 @@ export default function RegisterPage() {
             <GraduationCap size={28} className="text-white" />
           </div>
           <h1 className="text-xl font-bold text-slate-800">注册账号</h1>
-          <p className="text-xs text-slate-400 mt-1">创建您的导师工作台账户</p>
+          <p className="text-xs text-slate-400 mt-1">创建您的科研工作台账户</p>
         </div>
 
         <div className="card p-6" style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.04)' }}>

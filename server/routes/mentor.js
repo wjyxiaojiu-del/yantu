@@ -1,16 +1,17 @@
+import { Router } from 'express';
 import { queryAll, queryOne, run } from '../db.js';
 import { validateBody, Patterns } from '../middleware/validate.js';
 import { upload, UPLOAD_PATH } from '../middleware/upload.js';
+import { getTenantId, ROLES } from '../middleware/tenant.js';
+import { wrap } from '../middleware/wrap.js';
 import { unlinkSync, existsSync } from 'fs';
 import { join } from 'path';
 
+const router = Router();
 const DEFAULT_MENTOR_ID = 1;
-const wrap = (fn) => (req, res) => {
-  try { fn(req, res); } catch (e) { res.status(500).json({ error: e.message }); }
-};
 
-function getTenantId(req) {
-  return Number(req.headers['x-tenant-id'] || req.query.tenant_id || 1);
+function getTid(req) {
+  return req.tenantId || getTenantId(req);
 }
 
 function getStudentAgileProjectId(studentId) {
@@ -49,30 +50,23 @@ function syncReviewToAgile(studentId, title, scheduledDate, stageType) {
   }
 }
 
-function createNotification({ mentor_id, user_id, type = 'system', title, content, related_id, related_type }) {
+function createNotification({ tenant_id, mentor_id, user_id, type = 'system', title, content, related_id, related_type }) {
   try {
     run(
-      `INSERT INTO notifications (mentor_id, user_id, type, title, content, related_id, related_type, is_read)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
-      [mentor_id || null, user_id || null, type, title, content || null, related_id || null, related_type || null]
+      `INSERT INTO notifications (tenant_id, mentor_id, user_id, type, title, content, related_id, related_type, is_read)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+      [tenant_id || 1, mentor_id || null, user_id || null, type, title, content || null, related_id || null, related_type || null]
     );
   } catch (e) {
     console.error('[Notification] Failed to create:', e.message);
   }
 }
 
-export function getMentorRoutes(app) {
-  // Dashboard
-  app.get('/api/mentor/dashboard', (req, res) => {
+// Dashboard
+  router.get('/dashboard', (req, res) => {
     try {
-      const tenantId = getTenantId(req);
+      const tenantId = getTid(req);
       const mentorId = req.query.mentor_id || DEFAULT_MENTOR_ID;
-      const studentCount = queryOne(
-        `SELECT COUNT(*) as count FROM mentor_student_relations msr
-         JOIN students s ON msr.student_id = s.id
-         WHERE s.tenant_id = ? AND msr.mentor_id = ? AND msr.status = ?`,
-        [tenantId, mentorId, 'active']
-      ).count;
 
       const activeStudents = queryAll(
         `SELECT s.* FROM students s
@@ -86,19 +80,19 @@ export function getMentorRoutes(app) {
 
       if (studentIds.length > 0) {
         const placeholders = studentIds.map(() => '?').join(',');
-        pendingTasks = queryOne(
-          `SELECT COUNT(*) as count FROM mentor_tasks WHERE mentor_id = ? AND status = ? AND student_id IN (${placeholders})`,
-          [mentorId, 'pending', ...studentIds]
-        ).count;
-        completedTasks = queryOne(
-          `SELECT COUNT(*) as count FROM mentor_tasks WHERE mentor_id = ? AND status = ? AND student_id IN (${placeholders})`,
-          [mentorId, 'completed', ...studentIds]
-        ).count;
         const today = new Date().toISOString().split('T')[0];
-        overdueTasks = queryOne(
-          `SELECT COUNT(*) as count FROM mentor_tasks WHERE mentor_id = ? AND status = ? AND deadline < ? AND student_id IN (${placeholders})`,
-          [mentorId, 'pending', today, ...studentIds]
-        ).count;
+        // 合并为单次查询，用条件聚合代替 3 次独立 COUNT
+        const taskStats = queryOne(
+          `SELECT
+             SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pendingTasks,
+             SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completedTasks,
+             SUM(CASE WHEN status = 'pending' AND deadline < ? THEN 1 ELSE 0 END) as overdueTasks
+           FROM mentor_tasks WHERE tenant_id = ? AND mentor_id = ? AND student_id IN (${placeholders})`,
+          [today, tenantId, mentorId, ...studentIds]
+        );
+        pendingTasks = taskStats?.pendingTasks || 0;
+        completedTasks = taskStats?.completedTasks || 0;
+        overdueTasks = taskStats?.overdueTasks || 0;
       }
 
       const upcomingReviews = queryAll(
@@ -116,7 +110,7 @@ export function getMentorRoutes(app) {
       );
 
       res.json({
-        stats: { studentCount, pendingTasks, completedTasks, overdueTasks },
+        stats: { studentCount: activeStudents.length, pendingTasks, completedTasks, overdueTasks },
         students: activeStudents,
         upcomingReviews,
         recentMeetings
@@ -127,37 +121,61 @@ export function getMentorRoutes(app) {
   });
 
   // Students
-  app.get('/api/mentor/students', (req, res) => {
+  router.get('/students', (req, res) => {
     try {
-      const tenantId = getTenantId(req);
+      const tenantId = getTid(req);
       const mentorId = req.query.mentor_id || DEFAULT_MENTOR_ID;
-      const students = queryAll(
-        `SELECT s.*, msr.relation_type, msr.start_date
-         FROM students s
-         JOIN mentor_student_relations msr ON s.id = msr.student_id
-         WHERE s.tenant_id = ? AND msr.mentor_id = ? AND msr.status = ?
-         ORDER BY s.created_at DESC`,
-        [tenantId, mentorId, 'active']
-      );
-      res.json(students);
+      const page = Math.max(1, parseInt(req.query.page) || 1);
+      const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize) || 20));
+      const offset = (page - 1) * pageSize;
+      const paginated = req.query.page !== undefined || req.query.pageSize !== undefined;
+
+      if (paginated) {
+        const total = queryOne(
+          `SELECT COUNT(*) as count FROM students s
+           JOIN mentor_student_relations msr ON s.id = msr.student_id
+           WHERE s.tenant_id = ? AND msr.mentor_id = ? AND msr.status = ?`,
+          [tenantId, mentorId, 'active']
+        ).count;
+        const data = queryAll(
+          `SELECT s.*, msr.relation_type, msr.start_date
+           FROM students s
+           JOIN mentor_student_relations msr ON s.id = msr.student_id
+           WHERE s.tenant_id = ? AND msr.mentor_id = ? AND msr.status = ?
+           ORDER BY s.created_at DESC LIMIT ? OFFSET ?`,
+          [tenantId, mentorId, 'active', pageSize, offset]
+        );
+        res.json({ data, total, page, pageSize });
+      } else {
+        const students = queryAll(
+          `SELECT s.*, msr.relation_type, msr.start_date
+           FROM students s
+           JOIN mentor_student_relations msr ON s.id = msr.student_id
+           WHERE s.tenant_id = ? AND msr.mentor_id = ? AND msr.status = ?
+           ORDER BY s.created_at DESC`,
+          [tenantId, mentorId, 'active']
+        );
+        res.json(students);
+      }
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
   });
 
-  app.get('/api/mentor/students/:id', (req, res) => {
+  router.get('/students/:id', (req, res) => {
     try {
-      const tenantId = getTenantId(req);
+      const tenantId = getTid(req);
       const student = queryOne('SELECT * FROM students WHERE tenant_id = ? AND id = ?', [tenantId, req.params.id]);
       if (!student) return res.status(404).json({ error: 'Student not found' });
       const tasks = queryAll('SELECT * FROM mentor_tasks WHERE tenant_id = ? AND student_id = ? ORDER BY created_at DESC LIMIT 100', [tenantId, req.params.id]);
       const reviews = queryAll('SELECT * FROM review_stages WHERE tenant_id = ? AND student_id = ? ORDER BY scheduled_date ASC LIMIT 50', [tenantId, req.params.id]);
       const achievements = queryAll('SELECT * FROM achievements WHERE tenant_id = ? AND student_id = ? ORDER BY created_at DESC LIMIT 50', [tenantId, req.params.id]);
-      const allMeetings = queryAll(`SELECT * FROM meeting_records WHERE tenant_id = ? AND mentor_id = ? ORDER BY meeting_date DESC`, [tenantId, DEFAULT_MENTOR_ID]);
-      const studentIdNum = +req.params.id;
-      const meetings = allMeetings.filter(m => {
-        try { return JSON.parse(m.student_ids || '[]').includes(studentIdNum); } catch { return false; }
-      });
+      const meetings = queryAll(
+        `SELECT DISTINCT m.* FROM meeting_records m, json_each(m.student_ids)
+         WHERE m.tenant_id = ? AND m.mentor_id = ? AND json_each.value = ?
+         ORDER BY m.meeting_date DESC`,
+        [tenantId, DEFAULT_MENTOR_ID, +req.params.id]
+      );
       const activityLogs = queryAll('SELECT * FROM activity_logs WHERE tenant_id = ? AND entity_type = ? AND entity_id = ? ORDER BY created_at DESC LIMIT 20', [tenantId, 'student', req.params.id]);
       res.json({ student, tasks, reviews, achievements, meetings, activityLogs });
     } catch (e) {
@@ -165,7 +183,7 @@ export function getMentorRoutes(app) {
     }
   });
 
-  app.post('/api/mentor/students',
+  router.post('/students',
     validateBody({
       name: { required: true, minLength: 1, maxLength: 50 },
       email: { pattern: Patterns.email, message: '邮箱格式不正确' },
@@ -174,10 +192,10 @@ export function getMentorRoutes(app) {
     (req, res) => {
     try {
       const { name, email, student_id, grade, major, research_topic, enrollment_date, expected_graduation } = req.body;
-      const tenantId = getTenantId(req);
+      const tenantId = getTid(req);
       const result = run(
         `INSERT INTO students (tenant_id, name, email, student_id, grade, major, research_topic, enrollment_date, expected_graduation)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [tenantId, name, email || null, student_id || null, grade || null, major || null, research_topic || null, enrollment_date || null, expected_graduation || null]
       );
       const mentorId = req.body.mentor_id || DEFAULT_MENTOR_ID;
@@ -191,12 +209,12 @@ export function getMentorRoutes(app) {
     }
   });
 
-  app.put('/api/mentor/students/:id', (req, res) => {
+  router.put('/students/:id', (req, res) => {
     try {
       const { name, email, grade, major, research_topic, status, expected_graduation } = req.body;
       run(
-        `UPDATE students SET name = ?, email = ?, grade = ?, major = ?, research_topic = ?, status = ?, expected_graduation = ? WHERE id = ?`,
-        [name, email, grade, major, research_topic, status, expected_graduation, req.params.id]
+        `UPDATE students SET name = ?, email = ?, grade = ?, major = ?, research_topic = ?, status = ?, expected_graduation = ? WHERE id = ? AND tenant_id = ?`,
+        [name, email, grade, major, research_topic, status, expected_graduation, req.params.id, getTid(req)]
       );
       res.json({ success: true });
     } catch (e) {
@@ -204,10 +222,11 @@ export function getMentorRoutes(app) {
     }
   });
 
-  app.delete('/api/mentor/students/:id', (req, res) => {
+  router.delete('/students/:id', (req, res) => {
     try {
-      run('UPDATE mentor_student_relations SET status = ? WHERE student_id = ?', ['ended', req.params.id]);
-      run('UPDATE students SET status = ? WHERE id = ?', ['graduated', req.params.id]);
+      const tenantId = getTid(req);
+      run('UPDATE mentor_student_relations SET status = ? WHERE student_id = ? AND tenant_id = ?', ['ended', req.params.id, tenantId]);
+      run('UPDATE students SET status = ? WHERE id = ? AND tenant_id = ?', ['graduated', req.params.id, tenantId]);
       res.json({ success: true });
     } catch (e) {
       res.status(500).json({ error: e.message });
@@ -215,23 +234,47 @@ export function getMentorRoutes(app) {
   });
 
   // Tasks
-  app.get('/api/mentor/tasks', (req, res) => {
+  router.get('/tasks', (req, res) => {
     try {
-      const tenantId = getTenantId(req);
+      const tenantId = getTid(req);
       const mentorId = req.query.mentor_id || DEFAULT_MENTOR_ID;
       const studentId = req.query.student_id;
-      let sql = `SELECT mt.*, s.name as student_name FROM mentor_tasks mt
-                 JOIN students s ON mt.student_id = s.id WHERE mt.tenant_id = ? AND mt.mentor_id = ?`;
-      const params = [tenantId, mentorId];
-      if (studentId) { sql += ' AND mt.student_id = ?'; params.push(studentId); }
-      sql += ' ORDER BY mt.created_at DESC';
-      res.json(queryAll(sql, params));
+      const page = Math.max(1, parseInt(req.query.page) || 1);
+      const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize) || 20));
+      const offset = (page - 1) * pageSize;
+      const paginated = req.query.page !== undefined || req.query.pageSize !== undefined;
+
+      let baseWhere = `mt.tenant_id = ? AND mt.mentor_id = ?`;
+      const baseParams = [tenantId, mentorId];
+      if (studentId) { baseWhere += ' AND mt.student_id = ?'; baseParams.push(studentId); }
+
+      if (paginated) {
+        const total = queryOne(
+          `SELECT COUNT(*) as count FROM mentor_tasks mt
+           JOIN students s ON mt.student_id = s.id WHERE ${baseWhere}`,
+          baseParams
+        ).count;
+        const data = queryAll(
+          `SELECT mt.*, s.name as student_name FROM mentor_tasks mt
+           JOIN students s ON mt.student_id = s.id WHERE ${baseWhere}
+           ORDER BY mt.created_at DESC LIMIT ? OFFSET ?`,
+          [...baseParams, pageSize, offset]
+        );
+        res.json({ data, total, page, pageSize });
+      } else {
+        res.json(queryAll(
+          `SELECT mt.*, s.name as student_name FROM mentor_tasks mt
+           JOIN students s ON mt.student_id = s.id WHERE ${baseWhere}
+           ORDER BY mt.created_at DESC`,
+          baseParams
+        ));
+      }
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
   });
 
-  app.post('/api/mentor/tasks',
+  router.post('/tasks',
     validateBody({
       title: { required: true, minLength: 1, maxLength: 200 },
       student_id: { required: true },
@@ -240,15 +283,16 @@ export function getMentorRoutes(app) {
     try {
       const { mentor_id, student_id, title, description, deadline, priority, category } = req.body;
       const result = run(
-        `INSERT INTO mentor_tasks (mentor_id, student_id, title, description, deadline, priority, category)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [mentor_id || DEFAULT_MENTOR_ID, student_id, title, description || null, deadline || null, priority || 'medium', category || 'general']
+        `INSERT INTO mentor_tasks (tenant_id, mentor_id, student_id, title, description, deadline, priority, category)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [getTid(req), mentor_id || DEFAULT_MENTOR_ID, student_id, title, description || null, deadline || null, priority || 'medium', category || 'general']
       );
       // Auto-sync to agile project
       const agileStory = await syncTaskToAgile(student_id, title, description, deadline, priority);
       // Notify student
       const studentName = queryOne('SELECT name FROM students WHERE id = ?', [student_id])?.name || '';
       createNotification({
+        tenant_id: getTid(req),
         mentor_id: mentor_id || DEFAULT_MENTOR_ID,
         user_id: student_id,
         type: 'task',
@@ -263,13 +307,13 @@ export function getMentorRoutes(app) {
     }
   });
 
-  app.put('/api/mentor/tasks/:id', (req, res) => {
+  router.put('/tasks/:id', (req, res) => {
     try {
       const { title, description, deadline, priority, status, category } = req.body;
       const completedAt = status === 'completed' ? new Date().toISOString() : null;
       run(
-        `UPDATE mentor_tasks SET title = ?, description = ?, deadline = ?, priority = ?, status = ?, category = ?, completed_at = ? WHERE id = ?`,
-        [title, description, deadline, priority, status, category, completedAt, req.params.id]
+        `UPDATE mentor_tasks SET title = ?, description = ?, deadline = ?, priority = ?, status = ?, category = ?, completed_at = ? WHERE id = ? AND tenant_id = ?`,
+        [title, description, deadline, priority, status, category, completedAt, req.params.id, getTid(req)]
       );
       res.json({ success: true });
     } catch (e) {
@@ -277,25 +321,50 @@ export function getMentorRoutes(app) {
     }
   });
 
-  app.delete('/api/mentor/tasks/:id', wrap((req, res) => { run('DELETE FROM mentor_tasks WHERE id = ?', [req.params.id]); res.json({ success: true }); }));
+  router.delete('/tasks/:id', wrap((req, res) => { run('DELETE FROM mentor_tasks WHERE id = ? AND tenant_id = ?', [req.params.id, getTid(req)]); res.json({ success: true }); }));
 
   // Reviews
-  app.get('/api/mentor/reviews', (req, res) => {
+  router.get('/reviews', (req, res) => {
     try {
       const mentorId = req.query.mentor_id || DEFAULT_MENTOR_ID;
-      res.json(queryAll(
-        `SELECT rs.*, s.name as student_name FROM review_stages rs
-         JOIN students s ON rs.student_id = s.id
-         JOIN mentor_student_relations msr ON s.id = msr.student_id
-         WHERE msr.mentor_id = ? ORDER BY rs.scheduled_date ASC`,
-        [mentorId]
-      ));
+      const tenantId = getTid(req);
+      const page = Math.max(1, parseInt(req.query.page) || 1);
+      const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize) || 20));
+      const offset = (page - 1) * pageSize;
+      const paginated = req.query.page !== undefined || req.query.pageSize !== undefined;
+
+      if (paginated) {
+        const total = queryOne(
+          `SELECT COUNT(*) as count FROM review_stages rs
+           JOIN students s ON rs.student_id = s.id
+           JOIN mentor_student_relations msr ON s.id = msr.student_id
+           WHERE s.tenant_id = ? AND msr.mentor_id = ?`,
+          [tenantId, mentorId]
+        ).count;
+        const data = queryAll(
+          `SELECT rs.*, s.name as student_name FROM review_stages rs
+           JOIN students s ON rs.student_id = s.id
+           JOIN mentor_student_relations msr ON s.id = msr.student_id
+           WHERE s.tenant_id = ? AND msr.mentor_id = ?
+           ORDER BY rs.scheduled_date ASC LIMIT ? OFFSET ?`,
+          [tenantId, mentorId, pageSize, offset]
+        );
+        res.json({ data, total, page, pageSize });
+      } else {
+        res.json(queryAll(
+          `SELECT rs.*, s.name as student_name FROM review_stages rs
+           JOIN students s ON rs.student_id = s.id
+           JOIN mentor_student_relations msr ON s.id = msr.student_id
+           WHERE s.tenant_id = ? AND msr.mentor_id = ? ORDER BY rs.scheduled_date ASC`,
+          [tenantId, mentorId]
+        ));
+      }
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
   });
 
-  app.post('/api/mentor/reviews',
+  router.post('/reviews',
     validateBody({
       student_id: { required: true },
       stage_type: { required: true, minLength: 1 },
@@ -305,12 +374,13 @@ export function getMentorRoutes(app) {
     try {
       const { student_id, stage_type, title, scheduled_date } = req.body;
       const result = run(
-        `INSERT INTO review_stages (student_id, stage_type, title, scheduled_date) VALUES (?, ?, ?, ?)`,
-        [student_id, stage_type, title, scheduled_date || null]
+        `INSERT INTO review_stages (tenant_id, student_id, stage_type, title, scheduled_date) VALUES (?, ?, ?, ?, ?)`,
+        [getTid(req), student_id, stage_type, title, scheduled_date || null]
       );
       // Auto-sync to agile project
       const agileMilestone = await syncReviewToAgile(student_id, title, scheduled_date, stage_type);
       createNotification({
+        tenant_id: getTid(req),
         user_id: student_id,
         type: 'review',
         title: '评审节点安排',
@@ -324,17 +394,18 @@ export function getMentorRoutes(app) {
     }
   });
 
-  app.put('/api/mentor/reviews/:id', (req, res) => {
+  router.put('/reviews/:id', (req, res) => {
     try {
       const { status, scheduled_date, completed_date, score, feedback, notes } = req.body;
-      const prev = queryOne('SELECT student_id, title FROM review_stages WHERE id = ?', [req.params.id]);
+      const prev = queryOne('SELECT student_id, title FROM review_stages WHERE id = ? AND tenant_id = ?', [req.params.id, getTid(req)]);
       run(
-        `UPDATE review_stages SET status = ?, scheduled_date = ?, completed_date = ?, score = ?, feedback = ?, notes = ? WHERE id = ?`,
-        [status || null, scheduled_date || null, completed_date || null, score ?? null, feedback || null, notes || null, req.params.id]
+        `UPDATE review_stages SET status = ?, scheduled_date = ?, completed_date = ?, score = ?, feedback = ?, notes = ? WHERE id = ? AND tenant_id = ?`,
+        [status || null, scheduled_date || null, completed_date || null, score ?? null, feedback || null, notes || null, req.params.id, getTid(req)]
       );
       // Notify on feedback or completion
       if (prev && (feedback || status === 'completed')) {
         createNotification({
+          tenant_id: getTid(req),
           user_id: prev.student_id,
           type: 'review',
           title: status === 'completed' ? '评审已完成' : '评审反馈更新',
@@ -349,19 +420,37 @@ export function getMentorRoutes(app) {
     }
   });
 
-  app.delete('/api/mentor/reviews/:id', wrap((req, res) => { run('DELETE FROM review_stages WHERE id = ?', [req.params.id]); res.json({ success: true }); }));
+  router.delete('/reviews/:id', wrap((req, res) => { run('DELETE FROM review_stages WHERE id = ? AND tenant_id = ?', [req.params.id, getTid(req)]); res.json({ success: true }); }));
 
   // Meetings
-  app.get('/api/mentor/meetings', (req, res) => {
+  router.get('/meetings', (req, res) => {
     try {
       const mentorId = req.query.mentor_id || DEFAULT_MENTOR_ID;
-      res.json(queryAll('SELECT * FROM meeting_records WHERE mentor_id = ? ORDER BY meeting_date DESC LIMIT 50', [mentorId]));
+      const tenantId = getTid(req);
+      const page = Math.max(1, parseInt(req.query.page) || 1);
+      const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize) || 20));
+      const offset = (page - 1) * pageSize;
+      const paginated = req.query.page !== undefined || req.query.pageSize !== undefined;
+
+      if (paginated) {
+        const total = queryOne(
+          'SELECT COUNT(*) as count FROM meeting_records WHERE tenant_id = ? AND mentor_id = ?',
+          [tenantId, mentorId]
+        ).count;
+        const data = queryAll(
+          'SELECT * FROM meeting_records WHERE tenant_id = ? AND mentor_id = ? ORDER BY meeting_date DESC LIMIT ? OFFSET ?',
+          [tenantId, mentorId, pageSize, offset]
+        );
+        res.json({ data, total, page, pageSize });
+      } else {
+        res.json(queryAll('SELECT * FROM meeting_records WHERE tenant_id = ? AND mentor_id = ? ORDER BY meeting_date DESC LIMIT 50', [tenantId, mentorId]));
+      }
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
   });
 
-  app.post('/api/mentor/meetings',
+  router.post('/meetings',
     validateBody({
       student_ids: { required: true },
       meeting_date: { required: true, pattern: Patterns.date, message: '日期格式应为 YYYY-MM-DD' },
@@ -371,13 +460,14 @@ export function getMentorRoutes(app) {
     try {
       const { mentor_id, student_ids, meeting_date, meeting_type, topic, summary, action_items, next_meeting_date } = req.body;
       const result = run(
-        `INSERT INTO meeting_records (mentor_id, student_ids, meeting_date, meeting_type, topic, summary, action_items, next_meeting_date)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [mentor_id || DEFAULT_MENTOR_ID, JSON.stringify(student_ids || []), meeting_date, meeting_type || 'individual', topic, summary || null, action_items || null, next_meeting_date || null]
+        `INSERT INTO meeting_records (tenant_id, mentor_id, student_ids, meeting_date, meeting_type, topic, summary, action_items, next_meeting_date)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [getTid(req), mentor_id || DEFAULT_MENTOR_ID, JSON.stringify(student_ids || []), meeting_date, meeting_type || 'individual', topic, summary || null, action_items || null, next_meeting_date || null]
       );
       // Notify attendees
       for (const sid of student_ids || []) {
         createNotification({
+          tenant_id: getTid(req),
           mentor_id: mentor_id || DEFAULT_MENTOR_ID,
           user_id: sid,
           type: 'meeting',
@@ -393,12 +483,12 @@ export function getMentorRoutes(app) {
     }
   });
 
-  app.put('/api/mentor/meetings/:id', (req, res) => {
+  router.put('/meetings/:id', (req, res) => {
     try {
       const { student_ids, meeting_date, meeting_type, topic, summary, action_items, next_meeting_date, status } = req.body;
       run(
-        `UPDATE meeting_records SET student_ids = ?, meeting_date = ?, meeting_type = ?, topic = ?, summary = ?, action_items = ?, next_meeting_date = ?, status = ? WHERE id = ?`,
-        [JSON.stringify(student_ids || []), meeting_date, meeting_type || null, topic || null, summary || null, action_items || null, next_meeting_date || null, status || null, req.params.id]
+        `UPDATE meeting_records SET student_ids = ?, meeting_date = ?, meeting_type = ?, topic = ?, summary = ?, action_items = ?, next_meeting_date = ?, status = ? WHERE id = ? AND tenant_id = ?`,
+        [JSON.stringify(student_ids || []), meeting_date, meeting_type || null, topic || null, summary || null, action_items || null, next_meeting_date || null, status || null, req.params.id, getTid(req)]
       );
       res.json({ success: true });
     } catch (e) {
@@ -406,31 +496,33 @@ export function getMentorRoutes(app) {
     }
   });
 
-  app.delete('/api/mentor/meetings/:id', wrap((req, res) => { run('DELETE FROM meeting_records WHERE id = ?', [req.params.id]); res.json({ success: true }); }));
+  router.delete('/meetings/:id', wrap((req, res) => { run('DELETE FROM meeting_records WHERE id = ? AND tenant_id = ?', [req.params.id, getTid(req)]); res.json({ success: true }); }));
 
   // Achievements
-  app.get('/api/mentor/achievements', (req, res) => {
+  router.get('/achievements', (req, res) => {
     try {
+      const tenantId = getTid(req);
       const studentId = req.query.student_id;
-      let sql = 'SELECT * FROM achievements';
-      const params = [];
-      if (studentId) { sql += ' WHERE student_id = ?'; params.push(studentId); }
-      sql += ' ORDER BY created_at DESC';
+      let sql = 'SELECT a.* FROM achievements a JOIN students s ON a.student_id = s.id WHERE s.tenant_id = ?';
+      const params = [tenantId];
+      if (studentId) { sql += ' AND a.student_id = ?'; params.push(studentId); }
+      sql += ' ORDER BY a.created_at DESC';
       res.json(queryAll(sql, params));
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
   });
 
-  app.post('/api/mentor/achievements', (req, res) => {
+  router.post('/achievements', (req, res) => {
     try {
       const { student_id, title, achievement_type, journal_or_conference, publish_date, doi_or_link, status, notes } = req.body;
       const result = run(
-        `INSERT INTO achievements (student_id, title, achievement_type, journal_or_conference, publish_date, doi_or_link, status, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [student_id, title, achievement_type || 'paper', journal_or_conference || null, publish_date || null, doi_or_link || null, status || 'published', notes || null]
+        `INSERT INTO achievements (tenant_id, student_id, title, achievement_type, journal_or_conference, publish_date, doi_or_link, status, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [getTid(req), student_id, title, achievement_type || 'paper', journal_or_conference || null, publish_date || null, doi_or_link || null, status || 'published', notes || null]
       );
       createNotification({
+        tenant_id: getTid(req),
         user_id: student_id,
         type: 'achievement',
         title: '学术成果记录更新',
@@ -444,12 +536,12 @@ export function getMentorRoutes(app) {
     }
   });
 
-  app.put('/api/mentor/achievements/:id', (req, res) => {
+  router.put('/achievements/:id', (req, res) => {
     try {
       const { title, achievement_type, journal_or_conference, publish_date, doi_or_link, status, notes } = req.body;
       run(
-        `UPDATE achievements SET title = ?, achievement_type = ?, journal_or_conference = ?, publish_date = ?, doi_or_link = ?, status = ?, notes = ? WHERE id = ?`,
-        [title, achievement_type || null, journal_or_conference || null, publish_date || null, doi_or_link || null, status || null, notes || null, req.params.id]
+        `UPDATE achievements SET title = ?, achievement_type = ?, journal_or_conference = ?, publish_date = ?, doi_or_link = ?, status = ?, notes = ? WHERE id = ? AND tenant_id = ?`,
+        [title, achievement_type || null, journal_or_conference || null, publish_date || null, doi_or_link || null, status || null, notes || null, req.params.id, getTid(req)]
       );
       res.json({ success: true });
     } catch (e) {
@@ -457,17 +549,17 @@ export function getMentorRoutes(app) {
     }
   });
 
-  app.delete('/api/mentor/achievements/:id', wrap((req, res) => { run('DELETE FROM achievements WHERE id = ?', [req.params.id]); res.json({ success: true }); }));
+  router.delete('/achievements/:id', wrap((req, res) => { run('DELETE FROM achievements WHERE id = ? AND tenant_id = ?', [req.params.id, getTid(req)]); res.json({ success: true }); }));
 
   // Notifications
-  app.get('/api/mentor/notifications', (req, res) => {
+  router.get('/notifications', (req, res) => {
     try {
       const mentorId = req.query.mentor_id || DEFAULT_MENTOR_ID;
       const userId = req.query.user_id;
       const isRead = req.query.is_read;
       const type = req.query.type;
-      let sql = 'SELECT * FROM notifications WHERE 1=1';
-      const params = [];
+      let sql = 'SELECT * FROM notifications WHERE tenant_id = ?';
+      const params = [getTid(req)];
       if (userId) {
         sql += ' AND (user_id = ? OR mentor_id = ?)';
         params.push(userId, userId);
@@ -484,12 +576,12 @@ export function getMentorRoutes(app) {
     }
   });
 
-  app.get('/api/mentor/notifications/unread-count', (req, res) => {
+  router.get('/notifications/unread-count', (req, res) => {
     try {
       const userId = req.query.user_id;
       const mentorId = req.query.mentor_id || DEFAULT_MENTOR_ID;
-      let sql = 'SELECT COUNT(*) as count FROM notifications WHERE is_read = 0';
-      const params = [];
+      let sql = 'SELECT COUNT(*) as count FROM notifications WHERE is_read = 0 AND tenant_id = ?';
+      const params = [getTid(req)];
       if (userId) {
         sql += ' AND (user_id = ? OR mentor_id = ?)';
         params.push(userId, userId);
@@ -503,16 +595,16 @@ export function getMentorRoutes(app) {
     }
   });
 
-  app.post('/api/mentor/notifications/:id/read', wrap((req, res) => { run('UPDATE notifications SET is_read = 1 WHERE id = ?', [req.params.id]); res.json({ success: true }); }));
+  router.post('/notifications/:id/read', wrap((req, res) => { run('UPDATE notifications SET is_read = 1 WHERE id = ? AND tenant_id = ?', [req.params.id, getTid(req)]); res.json({ success: true }); }));
 
-  app.post('/api/mentor/notifications/mark-all-read', (req, res) => {
+  router.post('/notifications/mark-all-read', (req, res) => {
     try {
       const userId = req.query.user_id;
       const mentorId = req.query.mentor_id || DEFAULT_MENTOR_ID;
       if (userId) {
-        run('UPDATE notifications SET is_read = 1 WHERE (user_id = ? OR mentor_id = ?) AND is_read = 0', [userId, userId]);
+        run('UPDATE notifications SET is_read = 1 WHERE (user_id = ? OR mentor_id = ?) AND is_read = 0 AND tenant_id = ?', [userId, userId, getTid(req)]);
       } else {
-        run('UPDATE notifications SET is_read = 1 WHERE mentor_id = ? AND is_read = 0', [mentorId]);
+        run('UPDATE notifications SET is_read = 1 WHERE mentor_id = ? AND is_read = 0 AND tenant_id = ?', [mentorId, getTid(req)]);
       }
       res.json({ success: true });
     } catch (e) {
@@ -520,22 +612,23 @@ export function getMentorRoutes(app) {
     }
   });
 
-  app.delete('/api/mentor/notifications/:id', wrap((req, res) => { run('DELETE FROM notifications WHERE id = ?', [req.params.id]); res.json({ success: true }); }));
+  router.delete('/notifications/:id', wrap((req, res) => { run('DELETE FROM notifications WHERE id = ? AND tenant_id = ?', [req.params.id, getTid(req)]); res.json({ success: true }); }));
 
   // Calendar — aggregate events from meetings, tasks, reviews, sprints, milestones
-  app.get('/api/mentor/calendar', (req, res) => {
+  router.get('/calendar', (req, res) => {
     try {
       const mentorId = req.query.mentor_id || DEFAULT_MENTOR_ID;
       const studentId = req.query.student_id;
       const start = req.query.start;
       const end = req.query.end;
+      const tenantId = getTid(req);
       const events = [];
 
       // Meetings
       const meetings = queryAll(
         `SELECT id, topic as title, meeting_date as date, meeting_type, student_ids, 'meeting' as type
-         FROM meeting_records WHERE mentor_id = ? ${start && end ? 'AND meeting_date >= ? AND meeting_date <= ?' : ''}`,
-        start && end ? [mentorId, start, end] : [mentorId]
+         FROM meeting_records WHERE mentor_id = ? AND tenant_id = ? ${start && end ? 'AND meeting_date >= ? AND meeting_date <= ?' : ''}`,
+        start && end ? [mentorId, tenantId, start, end] : [mentorId, tenantId]
       );
       for (const m of meetings) {
         events.push({
@@ -548,8 +641,8 @@ export function getMentorRoutes(app) {
       // Tasks
       let taskSql = `SELECT mt.id, mt.title, mt.deadline as date, mt.status, mt.student_id, s.name as student_name
                      FROM mentor_tasks mt JOIN students s ON mt.student_id = s.id
-                     WHERE mt.mentor_id = ? AND mt.deadline IS NOT NULL`;
-      const taskParams = [mentorId];
+                     WHERE mt.mentor_id = ? AND mt.tenant_id = ? AND mt.deadline IS NOT NULL`;
+      const taskParams = [mentorId, tenantId];
       if (start && end) { taskSql += ' AND mt.deadline >= ? AND mt.deadline <= ?'; taskParams.push(start, end); }
       if (studentId) { taskSql += ' AND mt.student_id = ?'; taskParams.push(studentId); }
       const tasks = queryAll(taskSql, taskParams);
@@ -565,8 +658,8 @@ export function getMentorRoutes(app) {
       let reviewSql = `SELECT rs.id, rs.title, rs.scheduled_date as date, rs.status, rs.student_id, s.name as student_name
                        FROM review_stages rs JOIN students s ON rs.student_id = s.id
                        JOIN mentor_student_relations msr ON s.id = msr.student_id
-                       WHERE msr.mentor_id = ? AND rs.scheduled_date IS NOT NULL`;
-      const reviewParams = [mentorId];
+                       WHERE msr.mentor_id = ? AND rs.tenant_id = ? AND rs.scheduled_date IS NOT NULL`;
+      const reviewParams = [mentorId, tenantId];
       if (start && end) { reviewSql += ' AND rs.scheduled_date >= ? AND rs.scheduled_date <= ?'; reviewParams.push(start, end); }
       if (studentId) { reviewSql += ' AND rs.student_id = ?'; reviewParams.push(studentId); }
       const reviews = queryAll(reviewSql, reviewParams);
@@ -580,9 +673,9 @@ export function getMentorRoutes(app) {
 
       // Sprints (start + end)
       const sprints = queryAll(
-        `SELECT id, name, start_date, end_date, status FROM sprints WHERE 1=1
+        `SELECT id, name, start_date, end_date, status FROM sprints WHERE tenant_id = ?
          ${start && end ? 'AND ((start_date >= ? AND start_date <= ?) OR (end_date >= ? AND end_date <= ?))' : ''}`,
-        start && end ? [start, end, start, end] : []
+        start && end ? [tenantId, start, end, start, end] : [tenantId]
       );
       for (const s of sprints) {
         events.push({
@@ -597,9 +690,9 @@ export function getMentorRoutes(app) {
 
       // Agile milestones
       const milestones = queryAll(
-        `SELECT id, name, due_date as date, status FROM agile_milestones WHERE due_date IS NOT NULL
+        `SELECT id, name, due_date as date, status FROM agile_milestones WHERE tenant_id = ? AND due_date IS NOT NULL
          ${start && end ? 'AND due_date >= ? AND due_date <= ?' : ''}`,
-        start && end ? [start, end] : []
+        start && end ? [tenantId, start, end] : [tenantId]
       );
       for (const m of milestones) {
         events.push({
@@ -617,21 +710,21 @@ export function getMentorRoutes(app) {
   });
 
   // Attendance
-  app.post('/api/mentor/attendance/check-in', (req, res) => {
+  router.post('/attendance/check-in', (req, res) => {
     try {
       const { user_id, student_id, work_content, check_type } = req.body;
       const now = new Date().toISOString();
       // Prevent duplicate check-in on same day
       const today = now.split('T')[0];
       const existing = queryOne(
-        'SELECT id FROM attendance_records WHERE user_id = ? AND date(check_in_time) = ? LIMIT 1',
-        [user_id, today]
+        'SELECT id FROM attendance_records WHERE user_id = ? AND date(check_in_time) = ? AND tenant_id = ? LIMIT 1',
+        [user_id, today, getTid(req)]
       );
       if (existing) return res.status(409).json({ error: '今日已打卡' });
       const result = run(
-        `INSERT INTO attendance_records (user_id, student_id, check_in_time, work_content, check_type, status)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [user_id, student_id || null, now, work_content || null, check_type || 'normal', 'checked_in']
+        `INSERT INTO attendance_records (user_id, student_id, check_in_time, work_content, check_type, status, tenant_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [user_id, student_id || null, now, work_content || null, check_type || 'normal', 'checked_in', getTid(req)]
       );
       res.json({ id: result.lastInsertRowid, check_in_time: now, success: true });
     } catch (e) {
@@ -639,7 +732,7 @@ export function getMentorRoutes(app) {
     }
   });
 
-  app.post('/api/mentor/attendance/check-out', (req, res) => {
+  router.post('/attendance/check-out', (req, res) => {
     try {
       const { id, work_content } = req.body;
       const record = queryOne('SELECT * FROM attendance_records WHERE id = ?', [id]);
@@ -659,7 +752,7 @@ export function getMentorRoutes(app) {
     }
   });
 
-  app.get('/api/mentor/attendance', (req, res) => {
+  router.get('/attendance', (req, res) => {
     try {
       const userId = req.query.user_id;
       const studentId = req.query.student_id;
@@ -669,8 +762,8 @@ export function getMentorRoutes(app) {
                  FROM attendance_records ar
                  LEFT JOIN users u ON ar.user_id = u.id
                  LEFT JOIN students s ON ar.student_id = s.id
-                 WHERE 1=1`;
-      const params = [];
+                 WHERE ar.tenant_id = ?`;
+      const params = [getTid(req)];
       if (userId) { sql += ' AND ar.user_id = ?'; params.push(userId); }
       if (studentId) { sql += ' AND ar.student_id = ?'; params.push(studentId); }
       if (start) { sql += ' AND date(ar.check_in_time) >= ?'; params.push(start); }
@@ -682,7 +775,7 @@ export function getMentorRoutes(app) {
     }
   });
 
-  app.get('/api/mentor/attendance/stats', (req, res) => {
+  router.get('/attendance/stats', (req, res) => {
     try {
       const userId = req.query.user_id;
       const studentId = req.query.student_id;
@@ -694,8 +787,8 @@ export function getMentorRoutes(app) {
         SUM(work_hours) as total_hours,
         AVG(work_hours) as avg_hours,
         MAX(work_hours) as max_hours
-        FROM attendance_records WHERE 1=1`;
-      const params = [];
+        FROM attendance_records WHERE tenant_id = ?`;
+      const params = [getTid(req)];
       if (userId) { sql += ' AND user_id = ?'; params.push(userId); }
       if (studentId) { sql += ' AND student_id = ?'; params.push(studentId); }
       if (start) { sql += ' AND date(check_in_time) >= ?'; params.push(start); }
@@ -705,8 +798,8 @@ export function getMentorRoutes(app) {
       let dailySql = `SELECT date(check_in_time) as day,
         COUNT(*) as count,
         SUM(work_hours) as hours
-        FROM attendance_records WHERE 1=1`;
-      const dailyParams = [];
+        FROM attendance_records WHERE tenant_id = ?`;
+      const dailyParams = [getTid(req)];
       if (userId) { dailySql += ' AND user_id = ?'; dailyParams.push(userId); }
       if (studentId) { dailySql += ' AND student_id = ?'; dailyParams.push(studentId); }
       if (start) { dailySql += ' AND date(check_in_time) >= ?'; dailyParams.push(start); }
@@ -720,13 +813,13 @@ export function getMentorRoutes(app) {
   });
 
   // Files
-  app.post('/api/mentor/files/upload', upload.single('file'), (req, res) => {
+  router.post('/files/upload', upload.single('file'), (req, res) => {
     try {
       if (!req.file) return res.status(400).json({ error: '未选择文件' });
       const { category, tags, description, uploaded_by, student_id, mentor_id } = req.body;
       const result = run(
-        `INSERT INTO files (original_name, stored_name, mime_type, size, category, tags, description, uploaded_by, student_id, mentor_id, path)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO files (original_name, stored_name, mime_type, size, category, tags, description, uploaded_by, student_id, mentor_id, path, tenant_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           req.file.originalname,
           req.file.filename,
@@ -739,6 +832,7 @@ export function getMentorRoutes(app) {
           student_id || null,
           mentor_id || DEFAULT_MENTOR_ID,
           req.file.filename,
+          getTid(req),
         ]
       );
       res.json({ id: result.lastInsertRowid, success: true, original_name: req.file.originalname });
@@ -747,17 +841,16 @@ export function getMentorRoutes(app) {
     }
   });
 
-  app.get('/api/mentor/files', (req, res) => {
+  router.get('/files', (req, res) => {
     try {
-      const mentorId = req.query.mentor_id || DEFAULT_MENTOR_ID;
       const studentId = req.query.student_id;
       const category = req.query.category;
       let sql = `SELECT f.*, u.name as uploader_name, s.name as student_name
                  FROM files f
                  LEFT JOIN users u ON f.uploaded_by = u.id
                  LEFT JOIN students s ON f.student_id = s.id
-                 WHERE f.mentor_id = ?`;
-      const params = [mentorId];
+                 WHERE f.tenant_id = ?`;
+      const params = [getTid(req)];
       if (studentId) { sql += ' AND f.student_id = ?'; params.push(studentId); }
       if (category) { sql += ' AND f.category = ?'; params.push(category); }
       sql += ' ORDER BY f.created_at DESC';
@@ -767,9 +860,9 @@ export function getMentorRoutes(app) {
     }
   });
 
-  app.get('/api/mentor/files/:id/download', (req, res) => {
+  router.get('/files/:id/download', (req, res) => {
     try {
-      const file = queryOne('SELECT * FROM files WHERE id = ?', [req.params.id]);
+      const file = queryOne('SELECT * FROM files WHERE id = ? AND tenant_id = ?', [req.params.id, getTid(req)]);
       if (!file) return res.status(404).json({ error: '文件不存在' });
       const filePath = join(UPLOAD_PATH, file.path);
       if (!existsSync(filePath)) return res.status(404).json({ error: '文件已丢失' });
@@ -781,12 +874,12 @@ export function getMentorRoutes(app) {
     }
   });
 
-  app.put('/api/mentor/files/:id', (req, res) => {
+  router.put('/files/:id', (req, res) => {
     try {
       const { original_name, category, tags, description } = req.body;
       run(
-        'UPDATE files SET original_name = ?, category = ?, tags = ?, description = ? WHERE id = ?',
-        [original_name, category, tags, description, req.params.id]
+        'UPDATE files SET original_name = ?, category = ?, tags = ?, description = ? WHERE id = ? AND tenant_id = ?',
+        [original_name, category, tags, description, req.params.id, getTid(req)]
       );
       res.json({ success: true });
     } catch (e) {
@@ -794,37 +887,36 @@ export function getMentorRoutes(app) {
     }
   });
 
-  app.delete('/api/mentor/files/:id', wrap((req, res) => {
-    const file = queryOne('SELECT * FROM files WHERE id = ?', [req.params.id]);
+  router.delete('/files/:id', wrap((req, res) => {
+    const file = queryOne('SELECT * FROM files WHERE id = ? AND tenant_id = ?', [req.params.id, getTid(req)]);
     if (file) {
       const filePath = join(UPLOAD_PATH, file.path);
       try { if (existsSync(filePath)) unlinkSync(filePath); } catch (e) { console.error('Delete file failed:', e.message); }
     }
-    run('DELETE FROM files WHERE id = ?', [req.params.id]);
+    run('DELETE FROM files WHERE id = ? AND tenant_id = ?', [req.params.id, getTid(req)]);
     res.json({ success: true });
   }));
 
   // Activity Logs
-  app.get('/api/mentor/activity-logs', (req, res) => {
+  router.get('/activity-logs', (req, res) => {
     try {
-      const mentorId = req.query.mentor_id || DEFAULT_MENTOR_ID;
       const limit = req.query.limit || 20;
       res.json(queryAll(
-        'SELECT * FROM activity_logs WHERE mentor_id = ? ORDER BY created_at DESC LIMIT ?',
-        [mentorId, limit]
+        'SELECT * FROM activity_logs WHERE tenant_id = ? ORDER BY created_at DESC LIMIT ?',
+        [getTid(req), limit]
       ));
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
   });
 
-  app.post('/api/mentor/activity-logs', (req, res) => {
+  router.post('/activity-logs', (req, res) => {
     try {
       const { mentor_id, action, entity_type, entity_id, details } = req.body;
       const result = run(
-        `INSERT INTO activity_logs (mentor_id, action, entity_type, entity_id, details)
-         VALUES (?, ?, ?, ?, ?)`,
-        [mentor_id || DEFAULT_MENTOR_ID, action, entity_type, entity_id, details]
+        `INSERT INTO activity_logs (mentor_id, action, entity_type, entity_id, details, tenant_id)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [mentor_id || DEFAULT_MENTOR_ID, action, entity_type, entity_id, details, getTid(req)]
       );
       res.json({ id: result.lastInsertRowid, success: true });
     } catch (e) {
@@ -833,9 +925,9 @@ export function getMentorRoutes(app) {
   });
 
   // Task Comments
-  app.get('/api/mentor/tasks/:id/comments', wrap((req, res) => { res.json(queryAll('SELECT * FROM task_comments WHERE task_id = ? ORDER BY created_at ASC LIMIT 100', [req.params.id])); }));
+  router.get('/tasks/:id/comments', wrap((req, res) => { res.json(queryAll('SELECT * FROM task_comments WHERE task_id = ? ORDER BY created_at ASC LIMIT 100', [req.params.id])); }));
 
-  app.post('/api/mentor/tasks/:id/comments', (req, res) => {
+  router.post('/tasks/:id/comments', (req, res) => {
     try {
       const { author_name, content } = req.body;
       const result = run(
@@ -848,10 +940,10 @@ export function getMentorRoutes(app) {
     }
   });
 
-  app.delete('/api/mentor/tasks/:id/comments/:cid', wrap((req, res) => { run('DELETE FROM task_comments WHERE id = ? AND task_id = ?', [req.params.cid, req.params.id]); res.json({ success: true }); }));
+  router.delete('/tasks/:id/comments/:cid', wrap((req, res) => { run('DELETE FROM task_comments WHERE id = ? AND task_id = ?', [req.params.cid, req.params.id]); res.json({ success: true }); }));
 
   // Seed
-  app.post('/api/mentor/seed', (req, res) => {
+  router.post('/seed', (req, res) => {
     try {
       if (queryOne('SELECT COUNT(*) as count FROM mentors').count === 0) {
         run(`INSERT INTO mentors (name, email, department, title) VALUES (?, ?, ?, ?)`,
@@ -955,14 +1047,14 @@ export function getMentorRoutes(app) {
   });
 
   // === Student-Project Link ===
-  app.get('/api/mentor/students/:id/projects', (req, res) => {
+  router.get('/students/:id/projects', (req, res) => {
     try {
       const links = queryAll('SELECT * FROM student_projects WHERE student_id = ? LIMIT 20', [req.params.id]);
       res.json(links);
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
-  app.post('/api/mentor/students/:id/projects', (req, res) => {
+  router.post('/students/:id/projects', (req, res) => {
     try {
       const { agile_project_id, project_name } = req.body;
       const result = run('INSERT INTO student_projects (student_id, agile_project_id, project_name) VALUES (?, ?, ?)',
@@ -971,51 +1063,11 @@ export function getMentorRoutes(app) {
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
-  app.delete('/api/mentor/students/:studentId/projects/:linkId', (req, res) => {
+  router.delete('/students/:studentId/projects/:linkId', (req, res) => {
     try {
       run('DELETE FROM student_projects WHERE id = ? AND student_id = ?', [req.params.linkId, req.params.studentId]);
       res.json({ success: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
-  // === Agile Direct DB Access (merged) ===
-  app.get('/api/agile/projects', (req, res) => {
-    try { res.json(queryAll('SELECT * FROM projects ORDER BY created_at DESC LIMIT 100')); }
-    catch (e) { res.status(500).json({ error: e.message }); }
-  });
-
-  app.get('/api/agile/projects/:id/stats', (req, res) => {
-    try {
-      const projectId = req.params.id;
-      const totalStories = queryOne('SELECT COUNT(*) as count FROM user_stories WHERE project_id = ?', [projectId]);
-      const doneStories = queryOne('SELECT COUNT(*) as count FROM user_stories WHERE project_id = ? AND status = ?', [projectId, 'done']);
-      const totalTasks = queryOne('SELECT COUNT(*) as count FROM agile_tasks WHERE story_id IN (SELECT id FROM user_stories WHERE project_id = ?)', [projectId]);
-      const doneTasks = queryOne('SELECT COUNT(*) as count FROM agile_tasks WHERE story_id IN (SELECT id FROM user_stories WHERE project_id = ?) AND status = ?', [projectId, 'done']);
-      const activeSprint = queryOne('SELECT * FROM sprints WHERE project_id = ? AND status = ? ORDER BY end_date DESC LIMIT 1', [projectId, 'active']);
-      const milestones = queryAll('SELECT * FROM agile_milestones WHERE project_id = ? ORDER BY due_date LIMIT 50', [projectId]);
-      res.json({
-        totalStories: totalStories?.count || 0,
-        doneStories: doneStories?.count || 0,
-        totalTasks: totalTasks?.count || 0,
-        doneTasks: doneTasks?.count || 0,
-        activeSprint: activeSprint || null,
-        milestones: milestones || [],
-      });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-  });
-
-  app.get('/api/agile/projects/:id/milestones', (req, res) => {
-    try { res.json(queryAll('SELECT * FROM agile_milestones WHERE project_id = ? ORDER BY due_date LIMIT 50', [req.params.id])); }
-    catch (e) { res.status(500).json({ error: e.message }); }
-  });
-
-  app.get('/api/agile/projects/:id/sprints', (req, res) => {
-    try { res.json(queryAll('SELECT * FROM sprints WHERE project_id = ? ORDER BY start_date DESC LIMIT 50', [req.params.id])); }
-    catch (e) { res.status(500).json({ error: e.message }); }
-  });
-
-  app.get('/api/agile/projects/:id/stories', (req, res) => {
-    try { res.json(queryAll('SELECT * FROM user_stories WHERE project_id = ? ORDER BY priority, created_at DESC LIMIT 200', [req.params.id])); }
-    catch (e) { res.status(500).json({ error: e.message }); }
-  });
-}
+export default router;

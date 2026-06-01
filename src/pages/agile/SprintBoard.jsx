@@ -139,7 +139,7 @@ export default function SprintBoard() {
 
   return (
     <div className="space-y-5 max-w-[1400px]">
-      <div className="flex items-end justify-between" style={{ animation: 'slideUp .5s var(--spring-bounce)' }}>
+      <div className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">任务看板</h1>
           <p className="text-sm text-slate-400 mt-1">拖拽任务卡片以更新状态</p>
@@ -150,7 +150,7 @@ export default function SprintBoard() {
       </div>
 
       <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="grid grid-cols-5 gap-3 min-h-[65vh]" style={{ animation: 'slideUp .5s var(--spring-bounce) .05s both' }}>
+        <div className="grid grid-cols-5 gap-3 min-h-[65vh]">
           {COLUMNS.map((col, i) => (
             <KanbanColumn key={col.id} column={col} tasks={getTasksByColumn(col.id)} delay={i} />
           ))}
@@ -174,7 +174,6 @@ function KanbanColumn({ column, tasks, delay }) {
       style={{
         background: isOver ? c.overBg : c.bg,
         border: `2px ${isOver ? 'solid' : 'dashed'} ${isOver ? c.overBorder : c.border}`,
-        animation: `slideUp .5s var(--spring-bounce) ${delay * 0.06}s both`,
         transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
       }}
     >
@@ -210,7 +209,7 @@ function SortableTaskCard({ task, index }) {
   };
 
   return (
-    <div ref={setNodeRef} style={{ ...style, animation: `slideUp .35s var(--spring-bounce) ${index * 40}ms both` }} {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={{ ...style }} {...attributes} {...listeners}>
       <TaskCard task={task} />
     </div>
   );

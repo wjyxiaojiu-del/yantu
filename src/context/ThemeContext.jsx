@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useLayoutEffect, useCallback } from 'react';
 
 export const themes = [
   {
@@ -141,10 +141,64 @@ export const themes = [
       avatarBorder: '#8b6914',
     }
   },
+  {
+    id: 'midnight-dark',
+    name: '深夜',
+    description: '专注夜间模式',
+    colors: {
+      accent: '#7dd3fc', accentLight: '#bae6fd', accentDark: '#38bdf8',
+      accent50: 'rgba(125, 211, 252, 0.08)', accent100: 'rgba(125, 211, 252, 0.14)',
+      accent200: 'rgba(125, 211, 252, 0.20)', accent300: 'rgba(125, 211, 252, 0.30)',
+      accent400: 'rgba(125, 211, 252, 0.45)',
+      bgPage: '#0b1220', bgGradientFrom: 'rgba(125, 211, 252, 0.05)',
+      bgGradientMid: 'rgba(56, 189, 248, 0.04)', bgGradientTo: 'rgba(14, 165, 233, 0.03)',
+      sidebarFrom: '#0f172a', sidebarTo: '#1e293b',
+      sidebarAccent: 'rgba(125, 211, 252, 0.18)', sidebarGlow: 'rgba(56, 189, 248, 0.12)',
+      textPrimary: '#e2e8f0',
+      cardBorder: 'rgba(125, 211, 252, 0.18)', cardBorderHover: 'rgba(125, 211, 252, 0.28)',
+      cardShadow: 'rgba(0, 0, 0, 0.45)', cardShadowHover: 'rgba(0, 0, 0, 0.55)',
+      navHover: 'rgba(125, 211, 252, 0.10)', tableHover: 'rgba(125, 211, 252, 0.06)',
+      tableLeft: '#7dd3fc',
+      inputFocus: '#7dd3fc', inputFocusRing: 'rgba(125, 211, 252, 0.18)',
+      inputFocusShadow: 'rgba(125, 211, 252, 0.14)',
+      selectionBg: '#7dd3fc',
+      textGradientFrom: '#a5f3fc', textGradientMid: '#7dd3fc', textGradientTo: '#38bdf8',
+      logoFrom: '#a5f3fc', logoTo: '#38bdf8',
+      statBorder: 'rgba(125, 211, 252, 0.22)',
+      toastEnterShadow: 'rgba(56, 189, 248, 0.35)', toastEnterOutline: 'rgba(125, 211, 252, 0.50)',
+      avatarBorder: '#7dd3fc',
+    }
+  },
 ];
 
 const STORAGE_KEY = 'mentor-theme';
 const ThemeContext = createContext(null);
+
+function applyThemeVars(c) {
+  const root = document.documentElement;
+  const vars = {
+    '--accent': c.accent, '--accent-light': c.accentLight, '--accent-dark': c.accentDark,
+    '--accent-50': c.accent50, '--accent-100': c.accent100, '--accent-200': c.accent200,
+    '--accent-300': c.accent300, '--accent-400': c.accent400,
+    '--bg-page': c.bgPage, '--bg-gradient-from': c.bgGradientFrom,
+    '--bg-gradient-mid': c.bgGradientMid, '--bg-gradient-to': c.bgGradientTo,
+    '--sidebar-from': c.sidebarFrom, '--sidebar-to': c.sidebarTo,
+    '--sidebar-accent': c.sidebarAccent, '--sidebar-glow': c.sidebarGlow,
+    '--text-primary': c.textPrimary,
+    '--card-border': c.cardBorder, '--card-border-hover': c.cardBorderHover,
+    '--card-shadow': c.cardShadow, '--card-shadow-hover': c.cardShadowHover,
+    '--nav-hover': c.navHover, '--table-hover': c.tableHover, '--table-left': c.tableLeft,
+    '--input-focus': c.inputFocus, '--input-focus-ring': c.inputFocusRing,
+    '--input-focus-shadow': c.inputFocusShadow, '--selection-bg': c.selectionBg,
+    '--text-gradient-from': c.textGradientFrom, '--text-gradient-mid': c.textGradientMid,
+    '--text-gradient-to': c.textGradientTo,
+    '--logo-from': c.logoFrom, '--logo-to': c.logoTo,
+    '--stat-border': c.statBorder,
+    '--toast-enter-shadow': c.toastEnterShadow, '--toast-enter-outline': c.toastEnterOutline,
+    '--avatar-border': c.avatarBorder,
+  };
+  Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v));
+}
 
 export function ThemeProvider({ children }) {
   const [themeId, setThemeId] = useState(() => {
@@ -154,33 +208,13 @@ export function ThemeProvider({ children }) {
 
   const theme = themes.find(t => t.id === themeId) || themes[0];
 
-  useEffect(() => {
+  // 同步设置 CSS 变量，防止 useLayoutEffect 前的首帧闪烁
+  applyThemeVars(theme.colors);
+
+  useLayoutEffect(() => {
     localStorage.setItem(STORAGE_KEY, themeId);
     document.documentElement.setAttribute('data-theme', themeId);
-    const root = document.documentElement;
-    const c = theme.colors;
-    const vars = {
-      '--accent': c.accent, '--accent-light': c.accentLight, '--accent-dark': c.accentDark,
-      '--accent-50': c.accent50, '--accent-100': c.accent100, '--accent-200': c.accent200,
-      '--accent-300': c.accent300, '--accent-400': c.accent400,
-      '--bg-page': c.bgPage, '--bg-gradient-from': c.bgGradientFrom,
-      '--bg-gradient-mid': c.bgGradientMid, '--bg-gradient-to': c.bgGradientTo,
-      '--sidebar-from': c.sidebarFrom, '--sidebar-to': c.sidebarTo,
-      '--sidebar-accent': c.sidebarAccent, '--sidebar-glow': c.sidebarGlow,
-      '--text-primary': c.textPrimary,
-      '--card-border': c.cardBorder, '--card-border-hover': c.cardBorderHover,
-      '--card-shadow': c.cardShadow, '--card-shadow-hover': c.cardShadowHover,
-      '--nav-hover': c.navHover, '--table-hover': c.tableHover, '--table-left': c.tableLeft,
-      '--input-focus': c.inputFocus, '--input-focus-ring': c.inputFocusRing,
-      '--input-focus-shadow': c.inputFocusShadow, '--selection-bg': c.selectionBg,
-      '--text-gradient-from': c.textGradientFrom, '--text-gradient-mid': c.textGradientMid,
-      '--text-gradient-to': c.textGradientTo,
-      '--logo-from': c.logoFrom, '--logo-to': c.logoTo,
-      '--stat-border': c.statBorder,
-      '--toast-enter-shadow': c.toastEnterShadow, '--toast-enter-outline': c.toastEnterOutline,
-      '--avatar-border': c.avatarBorder,
-    };
-    Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v));
+    applyThemeVars(theme.colors);
   }, [themeId, theme]);
 
   const switchTheme = useCallback((id) => setThemeId(id), []);

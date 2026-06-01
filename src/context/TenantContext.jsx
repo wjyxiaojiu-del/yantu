@@ -35,8 +35,10 @@ export function TenantProvider({ children }) {
     const id = String(tenantId);
     setCurrentTenantId(id);
     localStorage.setItem(STORAGE_KEY, id);
-    // Reload page to refresh all data with new tenant context
-    window.location.reload();
+    // Clear API cache instead of full page reload
+    if (typeof window !== 'undefined' && window.__apiClearCache) {
+      window.__apiClearCache();
+    }
   }, []);
 
   const clearTenant = useCallback(() => {

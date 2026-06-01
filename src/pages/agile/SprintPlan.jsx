@@ -117,7 +117,7 @@ export default function SprintPlan() {
 
   return (
     <div className="space-y-5 max-w-[1400px]">
-      <div className="flex items-end justify-between" style={{ animation: 'slideUp .5s var(--spring-bounce)' }}>
+      <div className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">迭代规划</h1>
           <p className="text-sm text-slate-400 mt-1">规划迭代目标与任务分配</p>
@@ -138,7 +138,7 @@ export default function SprintPlan() {
       </div>
 
       {/* Sprint List Overview */}
-      <div className="flex gap-2 flex-wrap" style={{ animation: 'slideUp .5s var(--spring-bounce) .03s both' }}>
+      <div className="flex gap-2 flex-wrap">
         {sprints.map((s, i) => (
           <button key={s.id} onClick={() => setCurrent(s)}
             className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium transition-all duration-300"
@@ -148,7 +148,6 @@ export default function SprintPlan() {
                 : 'rgba(255,255,255,0.5)',
               border: `1.5px solid ${current?.id === s.id ? 'rgba(99,102,241,0.25)' : 'rgba(255,255,255,0.6)'}`,
               color: current?.id === s.id ? '#4f46e5' : '#64748b',
-              animation: `scaleIn .3s var(--spring-bounce) ${i * 0.04}s both`,
             }}>
             <span className="text-xs font-bold">S{s.number}</span>
             <span className="max-w-[120px] truncate text-xs">{s.name}</span>
@@ -160,7 +159,7 @@ export default function SprintPlan() {
       {current ? (
         <>
           {/* Sprint Info Card */}
-          <div className="card p-5" style={{ animation: 'slideUp .5s var(--spring-bounce) .05s both' }}>
+          <div className="card p-5">
             <div className="flex items-center gap-3 mb-5">
               <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold text-sm relative"
                 style={{
@@ -206,7 +205,7 @@ export default function SprintPlan() {
                 { label: '已完成', value: stats?.donePoints || 0, unit: '点', color: 'text-emerald-600' },
                 { label: '完成率', value: totalPoints ? Math.round((stats?.donePoints || 0) / totalPoints * 100) : 0, unit: '%', color: 'text-orange-600' },
               ].map((item, i) => (
-                <div key={i} className="rounded-xl p-3.5" style={{ background: 'rgba(241,245,249,0.5)', animation: `scaleIn .4s var(--spring-bounce) ${i * 0.05}s both` }}>
+                <div key={i} className="rounded-xl p-3.5" style={{ background: 'rgba(241,245,249,0.5)' }}>
                   <div className="text-[11px] text-slate-400 mb-1">{item.label}</div>
                   <div className={`text-lg font-bold ${item.color || 'text-slate-800'}`}>{item.value}<span className="text-xs font-normal text-slate-400 ml-1">{item.unit}</span></div>
                 </div>
@@ -231,7 +230,7 @@ export default function SprintPlan() {
           </div>
 
           {/* Points Distribution */}
-          <div className="card p-5" style={{ animation: 'slideUp .5s var(--spring-bounce) .1s both' }}>
+          <div className="card p-5">
             <div className="flex items-center justify-between mb-4">
               <span className="text-sm font-semibold text-slate-800 flex items-center gap-2"><Zap size={15} className="text-amber-500" /> 工作量分布</span>
               <span className="text-xs text-slate-400">{stats?.donePoints || 0} / {totalPoints} 点已完成</span>
@@ -244,7 +243,7 @@ export default function SprintPlan() {
                   boxShadow: '0 0 12px rgba(99,102,241,0.4)',
                   transition: 'width 1s cubic-bezier(0.22, 1, 0.36, 1)',
                 }}>
-                <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)', animation: 'shimmerBar 2s infinite' }} />
+                <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)' }} />
               </div>
             </div>
             <div className="grid grid-cols-3 gap-3">
@@ -257,7 +256,7 @@ export default function SprintPlan() {
                 };
                 return (
                   <div key={p} className="relative overflow-hidden rounded-xl p-4 transition-all duration-300 group"
-                    style={{ background: gradients[p], animation: `scaleIn .4s var(--spring-bounce) ${0.15 + i * 0.05}s both` }}>
+                    style={{ background: gradients[p] }}>
                     <span className={`badge badge-${p.toLowerCase()} mb-2`}>{p}</span>
                     <div className="text-xl font-bold text-slate-800">{pts}<span className="text-xs font-normal text-slate-400 ml-1">点</span></div>
                   </div>
@@ -267,12 +266,11 @@ export default function SprintPlan() {
           </div>
 
           {/* Stories List */}
-          <div className="card p-5" style={{ animation: 'slideUp .5s var(--spring-bounce) .15s both' }}>
+          <div className="card p-5">
             <h3 className="text-sm font-semibold text-slate-800 mb-3">迭代待办列表</h3>
             <div className="space-y-1.5">
               {stories.map((st, i) => (
-                <div key={st.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-orange-50/20 transition-all duration-300 group"
-                  style={{ animation: `slideInRight .3s var(--spring-bounce) ${i * 40}ms both` }}>
+                <div key={st.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-orange-50/20 transition-all duration-300 group">
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-slate-300 font-mono w-14">{st.story_id}</span>
                     <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900 transition-colors">{st.title}</span>
@@ -290,7 +288,7 @@ export default function SprintPlan() {
           </div>
         </>
       ) : (
-        <div className="card p-12 text-center" style={{ animation: 'slideUp .5s var(--spring-bounce) .05s both' }}>
+        <div className="card p-12 text-center">
           <div className="text-4xl mb-3">🚀</div>
           <div className="text-sm font-medium text-slate-500 mb-1">暂无迭代</div>
           <div className="text-xs text-slate-400 mb-4">点击「新建迭代」开始规划</div>

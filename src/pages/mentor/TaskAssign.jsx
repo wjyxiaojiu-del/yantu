@@ -7,6 +7,7 @@ import {
 import api from '../../api';
 import { useToast } from '../../components/Toast';
 import Modal from '../../components/Modal';
+import { SkeletonTable } from '../../components/Skeleton';
 
 export default function TaskAssign() {
   const [tasks, setTasks] = useState([]);
@@ -192,8 +193,7 @@ export default function TaskAssign() {
       </div>
 
       {selectedIds.size > 0 && (
-        <div className="flex items-center gap-3 p-3 rounded-xl bg-white/60 border border-white/80 backdrop-blur-lg"
-          style={{ animation: 'slideDown 0.3s var(--spring-bounce) both' }}>
+        <div className="flex items-center gap-3 p-3 rounded-xl bg-white/60 border border-white/80 backdrop-blur-lg">
           <span className="text-sm text-slate-600 font-medium">已选中 {selectedIds.size} 项</span>
           <div className="flex-1" />
           <button onClick={handleBatchComplete} className="btn btn-success text-xs py-1.5 px-3">
@@ -206,7 +206,7 @@ export default function TaskAssign() {
       )}
 
       {loading ? (
-        <div className="flex justify-center py-20"><div className="w-8 h-8 border-2 border-slate-200 border-t-[var(--accent)] rounded-full animate-spin" /></div>
+        <SkeletonTable rows={6} cols={7} />
       ) : (
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">

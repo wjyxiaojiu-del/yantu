@@ -341,7 +341,7 @@ export default function StudentDetail() {
       {/* Student Profile KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {kpiStats.map((s, i) => (
-          <div key={s.label} className="stat-card" style={{ animation: `countUp 0.5s var(--spring-bounce) ${i * 80}ms both` }}>
+          <div key={s.label} className="stat-card">
             <div className="flex items-center gap-3">
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${s.bg || 'bg-emerald-50'}`}>
                 <s.icon size={20} className={s.color || 'text-emerald-500'} />
@@ -371,8 +371,7 @@ export default function StudentDetail() {
             {timelineItems.map((item, i) => {
               const Icon = item.icon;
               return (
-                <div key={i} className="relative flex items-start gap-4 pb-8 last:pb-0"
-                  style={{ animation: `staggerFadeIn .4s var(--spring-bounce) ${i * 80}ms both` }}>
+                <div key={i} className="relative flex items-start gap-4 pb-8 last:pb-0">
                   <div className={`relative z-10 w-10 h-10 rounded-full flex items-center justify-center border-2 shrink-0 transition-all
                     ${item.status === 'completed' ? 'bg-emerald-50 border-emerald-500 text-emerald-600' :
                       item.status === 'in_progress' ? 'bg-amber-50 border-amber-500 text-amber-600' :
@@ -404,7 +403,7 @@ export default function StudentDetail() {
           { label: '待完成', value: pendingTasks.length, icon: AlertCircle },
           { label: '已完成', value: completedTasks.length, icon: CheckCircle2 },
         ].map((s, i) => (
-          <div key={s.label} className="stat-card" style={{ animation: `countUp 0.5s var(--spring-bounce) ${i * 100}ms both` }}>
+          <div key={s.label} className="stat-card">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--accent-50)' }}>
                 <s.icon size={20} style={{ color: 'var(--accent)' }} />
@@ -426,8 +425,7 @@ export default function StudentDetail() {
           </h2>
           <div className="space-y-2 max-h-[500px] overflow-y-auto">
             {tasks.map((task, i) => (
-              <div key={task.id} className="rounded-xl border border-slate-100 overflow-hidden"
-                style={{ animation: `staggerFadeIn .4s var(--spring-bounce) ${i * 60}ms both` }}>
+              <div key={task.id} className="rounded-xl border border-slate-100 overflow-hidden">
                 <div className="flex items-start gap-3 p-3 cursor-pointer hover:bg-slate-50/60 transition-all"
                   onClick={() => toggleTaskExpand(task)}>
                   <button
@@ -450,8 +448,7 @@ export default function StudentDetail() {
                 </div>
 
                 {expandedTask === task.id && (
-                  <div className="px-3 pb-3 border-t border-slate-50 bg-slate-50/30"
-                    style={{ animation: 'slideDown 0.2s ease' }}>
+                  <div className="px-3 pb-3 border-t border-slate-50 bg-slate-50/30">
                     {task.description && (
                       <p className="text-sm text-slate-500 py-3">{task.description}</p>
                     )}
@@ -584,7 +581,7 @@ export default function StudentDetail() {
                             </div>
                           )}
                           {expandedAgileProject === link.agile_project_id && (
-                            <div className="mt-3 border border-slate-200 rounded-xl overflow-hidden" style={{ animation: 'slideDown 0.3s ease' }}>
+                            <div className="mt-3 border border-slate-200 rounded-xl overflow-hidden">
                               <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-100">
                                 <span className="text-xs font-medium text-slate-600">项目看板</span>
                                 <Link to={`/agile/board?project=${link.agile_project_id}`}

@@ -2,5 +2,14 @@ node_modules/
 dist/
 *.log
 *.db
+server/uploads/
+server/backups/
 .env
 .env.local
+.env.production
+.vite/
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
