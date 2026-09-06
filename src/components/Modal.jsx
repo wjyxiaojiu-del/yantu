@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
 import { X } from 'lucide-react';
 
-export default function Modal({ children, onClose, title }) {
+export default function Modal({ children, onClose, title, open = true }) {
   useEffect(() => {
+    if (!open) return;
     const onKey = e => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
@@ -10,7 +11,9 @@ export default function Modal({ children, onClose, title }) {
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = '';
     };
-  }, [onClose]);
+  }, [onClose, open]);
+
+  if (!open) return null;
 
   return (
     <div className="modal-overlay" onClick={onClose}>

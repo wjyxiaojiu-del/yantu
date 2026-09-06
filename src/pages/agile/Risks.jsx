@@ -1,11 +1,25 @@
-import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Shield, AlertCircle, CheckSquare, Square, Trash, Loader2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { AlertCircle, Archive, Check, ChevronRight, Clock3, Edit2, Loader2, Plus, ShieldCheck, Sparkles, Trash2 } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
 import { useToast } from '../../components/Toast';
 import { SkeletonTable } from '../../components/LoadingSkeleton';
 import ErrorState from '../../components/ErrorState';
-import api from '../../api';
 import Modal from '../../components/Modal';
+import api from '../../api';
+
+const PRIORITIES = [
+  { id: 'S', name: '立即处理', meaning: '很紧急 · 很重要', note: '今天不处理就会明显影响推进', tone: 'red' },
+  { id: 'A', name: '优先推进', meaning: '紧急 · 重要', note: '尽快安排明确动作', tone: 'orange' },
+  { id: 'B', name: '持续投入', meaning: '不紧急 · 但重要', note: '最容易被忽略，也最值得保护时间', tone: 'blue' },
+  { id: 'C', name: '排队处理', meaning: '不紧急 · 不重要 · 但要做', note: '有空档时集中清理', tone: 'slate' },
+];
+
+const LONG_TERM = { id: 'L', name: '长期关注', meaning: 'Long-term', note: '不抢占今天，但需要定期回看', tone: 'violet' };
+const LEGACY_PRIORITY = { high: 'S', medium: 'B', low: 'C' };
+
+function priorityOf(risk) {
+  return ['S', 'A', 'B', 'C', 'L'].includes(risk.priority) ? risk.priority : (LEGACY_PRIORITY[risk.level] || 'B');
+}
 
 export default function Risks() {
   const { projectId } = useProject();
@@ -14,16 +28,16 @@ export default function Risks() {
   const [modal, setModal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selected, setSelected] = useState(new Set());
+  const [showClosed, setShowClosed] = useState(false);
 
   const load = async () => {
     try {
-      const r = await api.getRisks({ project_id: projectId });
-      setRisks(r);
+      const result = await api.getRisks({ project_id: projectId });
+      setRisks((Array.isArray(result) ? result : []).map((risk) => ({ ...risk, priority: priorityOf(risk) })));
       setError(null);
     } catch (e) {
       setError(e.message);
-      toast.error('加载风险数据失败');
+      toast.error('加载关注事项失败');
     } finally {
       setLoading(false);
     }
@@ -31,289 +45,187 @@ export default function Risks() {
 
   useEffect(() => { load(); }, [projectId]);
 
+  const visibleRisks = useMemo(() => risks.filter((risk) => showClosed || risk.status !== 'closed'), [risks, showClosed]);
+
   const handleSave = async (data) => {
     try {
-      if (modal.mode === 'create') await api.createRisk({ ...data, project_id: projectId });
-      else await api.updateRisk(modal.risk.id, data);
+      if (modal.mode === 'create') {
+        const created = await api.createRisk({ ...data, project_id: projectId });
+        setRisks((current) => [{ ...created, priority: priorityOf(created) }, ...current]);
+        toast.success('已加入优先级队列');
+      } else {
+        const updated = await api.updateRisk(modal.risk.id, data);
+        setRisks((current) => current.map((risk) => risk.id === updated.id ? { ...risk, ...updated, priority: priorityOf(updated) } : risk));
+        toast.success('事项已更新');
+      }
       setModal(null);
-      toast.success(modal.mode === 'create' ? '风险创建成功' : '风险更新成功');
-      load();
     } catch (e) {
-      toast.error('保存失败');
+      toast.error(`保存失败：${e.message}`);
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm('确定删除此风险？')) return;
+  const updateRisk = async (risk, patch, message) => {
+    const previous = risk;
+    setRisks((current) => current.map((item) => item.id === risk.id ? { ...item, ...patch } : item));
     try {
-      await api.deleteRisk(id);
-      toast.success('风险已删除');
-      load();
+      const updated = await api.updateRisk(risk.id, patch);
+      setRisks((current) => current.map((item) => item.id === risk.id ? { ...item, ...updated, priority: priorityOf(updated) } : item));
+      if (message) toast.success(message);
+    } catch (e) {
+      setRisks((current) => current.map((item) => item.id === risk.id ? previous : item));
+      toast.error('更新失败');
+    }
+  };
+
+  const handleDelete = async (risk) => {
+    if (!confirm(`确定删除「${risk.title}」？`)) return;
+    try {
+      await api.deleteRisk(risk.id);
+      setRisks((current) => current.filter((item) => item.id !== risk.id));
+      toast.success('已删除');
     } catch (e) {
       toast.error('删除失败');
     }
   };
 
-  const handleBatchDelete = async () => {
-    if (selected.size === 0) return;
-    if (!confirm(`确定删除选中的 ${selected.size} 个风险？`)) return;
-    try {
-      await api.batchDeleteRisks([...selected]);
-      toast.success(`已删除 ${selected.size} 个风险`);
-      setSelected(new Set());
-      load();
-    } catch (e) {
-      toast.error('批量删除失败：' + e.message);
-    }
-  };
-
-  const toggleSelect = (id) => {
-    setSelected(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const toggleSelectAll = () => {
-    if (selected.size === risks.length) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(risks.map(r => r.id)));
-    }
-  };
-
-  const handleStatusChange = async (id, status) => {
-    try {
-      await api.updateRisk(id, { status });
-      load();
-    } catch (e) {
-      toast.error('状态更新失败');
-    }
-  };
-
-  const matrix = Array.from({ length: 5 }, (_, prob) =>
-    Array.from({ length: 5 }, (_, imp) => {
-      const score = (5 - prob) * (imp + 1);
-      const level = score >= 16 ? 'high' : score >= 9 ? 'medium' : 'low';
-      const matched = risks.filter(r => r.probability === 5 - prob && r.impact === imp + 1);
-      return { prob: 5 - prob, imp: imp + 1, score, level, risks: matched };
-    })
-  );
-
-  if (loading) return <SkeletonTable rows={5} cols={7} />;
+  if (loading) return <SkeletonTable rows={5} cols={5} />;
   if (error) return <ErrorState message={error} onRetry={() => { setLoading(true); load(); }} />;
 
+  const activeCount = risks.filter((risk) => risk.status !== 'closed').length;
+  const criticalCount = risks.filter((risk) => risk.status !== 'closed' && priorityOf(risk) === 'S').length;
+  const longTerm = visibleRisks.filter((risk) => priorityOf(risk) === 'L');
+
   return (
-    <div className="space-y-5 max-w-[1400px]">
-      <div className="flex items-end justify-between">
+    <div className="priority-control-shell max-w-[1480px] mx-auto space-y-5">
+      <header className="priority-control-header workbench-reveal">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">风险管控</h1>
-          <p className="text-sm text-slate-400 mt-1">识别、评估与跟踪项目风险</p>
+          <div className="priority-eyebrow"><ShieldCheck size={13} /> PERSONAL PRIORITY CONTROL</div>
+          <h1>风险与关注事项</h1>
+          <p>不做复杂打分，由你决定什么值得先处理。</p>
         </div>
-        <div className="flex items-center gap-2">
-          {selected.size > 0 && (
-            <button onClick={handleBatchDelete} className="btn btn-danger gap-2 animate-popIn">
-              <Trash size={15} /> 删除选中 ({selected.size})
-            </button>
-          )}
-          <button onClick={() => setModal({ mode: 'create' })} className="btn btn-primary">
-            <Plus size={16} /> 新建风险
-          </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button className={`priority-closed-toggle ${showClosed ? 'is-active' : ''}`} onClick={() => setShowClosed((value) => !value)}><Archive size={14} /> {showClosed ? '隐藏已关闭' : '查看已关闭'}</button>
+          <button onClick={() => setModal({ mode: 'create', priority: 'B' })} className="btn btn-primary"><Plus size={16} /> 新增关注事项</button>
         </div>
-      </div>
+      </header>
 
-      {/* Risk Matrix */}
-      <div className="card p-5">
-        <h3 className="text-sm font-semibold text-slate-800 mb-4 flex items-center gap-2"><Shield size={15} className="text-orange-500" /> 风险评估矩阵</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-center text-xs">
-            <thead>
-              <tr>
-                <th className="py-2 px-3" colSpan={1}></th>
-                <th className="py-2 px-3 text-slate-400 font-medium" colSpan={5}>影响程度 →</th>
-              </tr>
-              <tr>
-                <th className="py-1 px-3 text-slate-400 font-medium">概率 ↓</th>
-                {[1, 2, 3, 4, 5].map(i => <th key={i} className="py-1 px-3 text-slate-400 font-medium">{i}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {matrix.reverse().map((row, ri) => (
-                <tr key={ri}>
-                  <td className="py-1.5 px-3 font-medium text-slate-500">{row[0].prob}</td>
-                  {row.map((cell, ci) => {
-                    const bg = cell.level === 'high' ? 'rgba(239,68,68,0.06)' : cell.level === 'medium' ? 'rgba(245,158,11,0.06)' : 'rgba(16,185,129,0.06)';
-                    const hoverBg = cell.level === 'high' ? 'rgba(239,68,68,0.1)' : cell.level === 'medium' ? 'rgba(245,158,11,0.1)' : 'rgba(16,185,129,0.1)';
-                    const text = cell.level === 'high' ? 'text-red-600' : cell.level === 'medium' ? 'text-amber-600' : 'text-emerald-600';
-                    return (
-                      <td key={cell.imp} className={`py-3 px-2 ${text} rounded-lg cursor-default font-bold`}
-                        style={{ background: bg, transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
-                        onMouseEnter={e => e.currentTarget.style.background = hoverBg}
-                        onMouseLeave={e => e.currentTarget.style.background = bg}>
-                        <div>{cell.score}</div>
-                        {cell.risks.length > 0 && <div className="text-slate-400 mt-0.5 font-normal">{cell.risks.length}个</div>}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="flex items-center justify-end gap-5 mt-3 text-[11px]">
-            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.15)' }} /> 高风险 ≥16</span>
-            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded" style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.15)' }} /> 中风险 9-15</span>
-            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded" style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.15)' }} /> 低风险 {'<'}9</span>
+      <section className="priority-summary workbench-reveal workbench-reveal-delay-1">
+        <div><span>当前关注</span><strong>{activeCount}</strong><small>项仍在队列中</small></div>
+        <div className={criticalCount ? 'is-critical' : ''}><span>S 级事项</span><strong>{criticalCount}</strong><small>{criticalCount ? '需要优先看一眼' : '目前没有燃眉之急'}</small></div>
+        <div><span>长期关注</span><strong>{risks.filter((risk) => priorityOf(risk) === 'L' && risk.status !== 'closed').length}</strong><small>独立于今日排序</small></div>
+        <div className="priority-principle"><Sparkles size={15} /><p><b>排序原则</b><span>先问“现在不做会怎样”，再问“长期是否重要”。</span></p></div>
+      </section>
+
+      <div className="priority-control-layout workbench-reveal workbench-reveal-delay-2">
+        <main className="priority-stack">
+          {PRIORITIES.map((priority) => (
+            <PriorityLane
+              key={priority.id}
+              priority={priority}
+              risks={visibleRisks.filter((risk) => priorityOf(risk) === priority.id)}
+              onAdd={() => setModal({ mode: 'create', priority: priority.id })}
+              onEdit={(risk) => setModal({ mode: 'edit', risk })}
+              onDelete={handleDelete}
+              onUpdate={updateRisk}
+            />
+          ))}
+        </main>
+
+        <aside className="long-term-lane">
+          <div className="long-term-heading">
+            <span className="priority-letter">L</span>
+            <div><h2>{LONG_TERM.name}</h2><p>{LONG_TERM.note}</p></div>
+            <span className="priority-lane-count">{longTerm.length}</span>
           </div>
-        </div>
-      </div>
-
-      {/* Risk List */}
-      <div className="card overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr style={{ background: 'rgba(241,245,249,0.5)' }}>
-              <th className="text-left px-4 py-3 w-10">
-                <button onClick={toggleSelectAll} className="text-slate-400 hover:text-orange-500 transition-colors">
-                  {selected.size === risks.length && risks.length > 0 ? <CheckSquare size={16} /> : <Square size={16} />}
-                </button>
-              </th>
-              <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">风险</th>
-              <th className="text-center px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">概率</th>
-              <th className="text-center px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">影响</th>
-              <th className="text-center px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">等级</th>
-              <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">应对策略</th>
-              <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">状态</th>
-              <th className="text-center px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider w-20">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {risks.map((r, i) => (
-              <tr key={r.id} className={`table-row group ${selected.has(r.id) ? 'bg-orange-50/30' : ''}`}>
-                <td className="px-4 py-3.5">
-                  <button onClick={() => toggleSelect(r.id)}
-                    className={`transition-all duration-300 ${selected.has(r.id) ? 'text-orange-500 scale-110' : 'text-slate-300 hover:text-orange-400'}`}
-                    style={{ transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
-                    {selected.has(r.id) ? <CheckSquare size={16} /> : <Square size={16} />}
-                  </button>
-                </td>
-                <td className="px-5 py-3.5">
-                  <div className="font-medium text-slate-800">{r.title}</div>
-                  <div className="text-xs text-slate-400 mt-0.5 max-w-xs truncate">{r.description}</div>
-                </td>
-                <td className="px-5 py-3.5 text-center text-slate-600 font-medium">{r.probability}</td>
-                <td className="px-5 py-3.5 text-center text-slate-600 font-medium">{r.impact}</td>
-                <td className="px-5 py-3.5 text-center">
-                  <span className={`badge ${r.level === 'high' ? 'badge-s' : r.level === 'medium' ? 'badge-b' : 'badge-d'}`}>
-                    {r.level === 'high' ? '高' : r.level === 'medium' ? '中' : '低'}
-                  </span>
-                </td>
-                <td className="px-5 py-3.5 text-xs text-slate-500 max-w-xs truncate">{r.strategy}</td>
-                <td className="px-5 py-3.5">
-                  <select value={r.status} onChange={e => handleStatusChange(r.id, e.target.value)} className="select w-24 text-xs py-1.5">
-                    <option value="monitoring">监控中</option>
-                    <option value="mitigated">已缓解</option>
-                    <option value="closed">已关闭</option>
-                  </select>
-                </td>
-                <td className="px-5 py-3.5 text-center">
-                  <div className="flex items-center justify-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    <button onClick={() => setModal({ mode: 'edit', risk: r })} className="p-1.5 rounded-lg hover:bg-orange-50 text-slate-400 hover:text-orange-500 transition-all duration-200"><Edit2 size={14} /></button>
-                    <button onClick={() => handleDelete(r.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-all duration-200"><Trash2 size={14} /></button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {risks.length === 0 && (
-          <div className="text-center py-16 text-slate-400 animate-fadeIn">
-            <div className="text-4xl mb-2">🛡️</div>
-            <div className="text-sm">暂无风险记录</div>
+          <div className="long-term-rule"><Clock3 size={13} /><span>建议每周复盘一次，不进入每日紧急排序。</span></div>
+          <div className="long-term-list">
+            {longTerm.map((risk) => <RiskCard key={risk.id} risk={risk} onEdit={() => setModal({ mode: 'edit', risk })} onDelete={() => handleDelete(risk)} onUpdate={updateRisk} longTerm />)}
+            {!longTerm.length && <EmptyLane copy="需要持续观察、但不急着解决的事放在这里。" onAdd={() => setModal({ mode: 'create', priority: 'L' })} />}
           </div>
-        )}
+          {longTerm.length > 0 && <button className="long-term-add" onClick={() => setModal({ mode: 'create', priority: 'L' })}><Plus size={13} /> 添加长期事项</button>}
+        </aside>
       </div>
 
-      <Modal open={!!modal} onClose={() => setModal(null)} title={modal?.mode === 'create' ? '新建风险' : '编辑风险'}>
-        {modal && <RiskForm risk={modal.risk} onSave={handleSave} onCancel={() => setModal(null)} />}
+      <div className="task-flow-signature"><span /><a href="https://deerflow.tech" target="_blank" rel="noreferrer">Created by Deerflow</a><span /></div>
+
+      <Modal open={!!modal} onClose={() => setModal(null)} title={modal?.mode === 'create' ? '新增关注事项' : '编辑关注事项'}>
+        {modal && <RiskForm risk={modal.risk} defaultPriority={modal.priority} onSave={handleSave} onCancel={() => setModal(null)} />}
       </Modal>
     </div>
   );
 }
 
-function RiskForm({ risk, onSave, onCancel }) {
+function PriorityLane({ priority, risks, onAdd, onEdit, onDelete, onUpdate }) {
+  return (
+    <section className={`priority-lane priority-lane-${priority.tone}`}>
+      <div className="priority-lane-heading">
+        <span className="priority-letter">{priority.id}</span>
+        <div><div className="flex items-center gap-2"><h2>{priority.name}</h2><span className="priority-meaning">{priority.meaning}</span></div><p>{priority.note}</p></div>
+        <span className="priority-lane-count">{risks.length}</span>
+        <button onClick={onAdd} aria-label={`添加 ${priority.id} 级事项`}><Plus size={15} /></button>
+      </div>
+      <div className="priority-lane-list">
+        {risks.map((risk) => <RiskCard key={risk.id} risk={risk} onEdit={() => onEdit(risk)} onDelete={() => onDelete(risk)} onUpdate={onUpdate} />)}
+        {!risks.length && <EmptyLane copy="这一层目前是空的。" onAdd={onAdd} compact />}
+      </div>
+    </section>
+  );
+}
+
+function RiskCard({ risk, onEdit, onDelete, onUpdate, longTerm }) {
+  return (
+    <article className={`priority-risk-card ${risk.status === 'closed' ? 'is-closed' : ''} ${longTerm ? 'is-long-term' : ''}`}>
+      <div className="priority-risk-copy">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h3>{risk.title}</h3>
+          {risk.status === 'mitigated' && <span className="risk-status-label mitigated"><Check size={9} /> 已缓解</span>}
+          {risk.status === 'closed' && <span className="risk-status-label closed">已关闭</span>}
+        </div>
+        {risk.description && <p>{risk.description}</p>}
+        {risk.strategy && <div className="risk-next-step"><ChevronRight size={11} /><span>{risk.strategy}</span></div>}
+      </div>
+      <div className="priority-risk-actions">
+        <select value={priorityOf(risk)} onChange={(e) => onUpdate(risk, { priority: e.target.value }, `已调整为 ${e.target.value} 级`)} aria-label="调整优先级">
+          {['S', 'A', 'B', 'C', 'L'].map((value) => <option key={value} value={value}>{value}</option>)}
+        </select>
+        {risk.status !== 'closed' && <button onClick={() => onUpdate(risk, { status: 'closed' }, '事项已关闭')} title="关闭事项"><Check size={13} /></button>}
+        <button onClick={onEdit} title="编辑"><Edit2 size={13} /></button>
+        <button onClick={onDelete} title="删除"><Trash2 size={13} /></button>
+      </div>
+    </article>
+  );
+}
+
+function EmptyLane({ copy, onAdd, compact }) {
+  return <button className={`priority-empty ${compact ? 'is-compact' : ''}`} onClick={onAdd}><Plus size={14} /><span>{copy}</span></button>;
+}
+
+function RiskForm({ risk, defaultPriority, onSave, onCancel }) {
   const [form, setForm] = useState({
     title: risk?.title || '',
     description: risk?.description || '',
-    probability: risk?.probability || 3,
-    impact: risk?.impact || 3,
+    priority: risk ? priorityOf(risk) : (defaultPriority || 'B'),
     strategy: risk?.strategy || '',
     status: risk?.status || 'monitoring',
   });
-  const [errors, setErrors] = useState({});
+  const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: '' })); };
-  const autoLevel = (p, i) => p * i >= 16 ? 'high' : p * i >= 9 ? 'medium' : 'low';
-
-  const validate = () => {
-    const e = {};
-    if (!form.title.trim()) e.title = '请填写风险标题';
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!validate()) return;
+  const submit = async (event) => {
+    event.preventDefault();
+    if (!form.title.trim()) { setError('请写下需要关注的事情'); return; }
     setSubmitting(true);
-    try { await onSave({ ...form, level: autoLevel(form.probability, form.impact) }); } finally { setSubmitting(false); }
+    try { await onSave({ ...form, title: form.title.trim() }); } finally { setSubmitting(false); }
   };
-
-  const levelInfo = autoLevel(form.probability, form.impact);
-  const score = form.probability * form.impact;
-
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label className="block text-xs font-medium text-slate-500 mb-1.5">风险标题 <span className="text-red-400">*</span></label>
-        <input value={form.title} onChange={e => set('title', e.target.value)} className={`input ${errors.title ? 'error' : ''}`} placeholder="简要描述风险" />
-        {errors.title && <p className="field-error flex items-center gap-1"><AlertCircle size={11} />{errors.title}</p>}
+    <form onSubmit={submit} className="space-y-4">
+      <div><label className="block text-xs font-medium text-slate-500 mb-1.5">关注事项</label><input value={form.title} onChange={(e) => { setForm((value) => ({ ...value, title: e.target.value })); setError(''); }} className={`input ${error ? 'error' : ''}`} autoFocus placeholder="例如：关键实验的样本量可能不足" />{error && <p className="field-error flex items-center gap-1"><AlertCircle size={11} />{error}</p>}</div>
+      <div><label className="block text-xs font-medium text-slate-500 mb-1.5">具体情况</label><textarea value={form.description} onChange={(e) => setForm((value) => ({ ...value, description: e.target.value }))} className="input" rows={3} placeholder="它为什么值得关注？可能带来什么影响？" /></div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div><label className="block text-xs font-medium text-slate-500 mb-1.5">优先级</label><select value={form.priority} onChange={(e) => setForm((value) => ({ ...value, priority: e.target.value }))} className="select"><option value="S">S · 很紧急，很重要</option><option value="A">A · 紧急，重要</option><option value="B">B · 不紧急，但重要</option><option value="C">C · 不紧急不重要，但要做</option><option value="L">L · 长期关注</option></select></div>
+        <div><label className="block text-xs font-medium text-slate-500 mb-1.5">状态</label><select value={form.status} onChange={(e) => setForm((value) => ({ ...value, status: e.target.value }))} className="select"><option value="monitoring">关注中</option><option value="mitigated">已缓解</option><option value="closed">已关闭</option></select></div>
       </div>
-      <div>
-        <label className="block text-xs font-medium text-slate-500 mb-1.5">详细描述</label>
-        <textarea value={form.description} onChange={e => set('description', e.target.value)} className="input" rows={2} placeholder="风险的具体情况..." />
-      </div>
-      <div className="grid grid-cols-3 gap-4">
-        <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1.5">发生概率</label>
-          <select value={form.probability} onChange={e => set('probability', +e.target.value)} className="select">
-            {[1, 2, 3, 4, 5].map(v => <option key={v} value={v}>{v} - {['极低', '低', '中', '高', '极高'][v - 1]}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1.5">影响程度</label>
-          <select value={form.impact} onChange={e => set('impact', +e.target.value)} className="select">
-            {[1, 2, 3, 4, 5].map(v => <option key={v} value={v}>{v} - {['极低', '低', '中', '高', '极高'][v - 1]}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1.5">自动评估</label>
-          <div className={`badge mt-2 ${levelInfo === 'high' ? 'badge-s' : levelInfo === 'medium' ? 'badge-b' : 'badge-d'}`}>
-            {score}分 · {levelInfo === 'high' ? '高风险' : levelInfo === 'medium' ? '中风险' : '低风险'}
-          </div>
-        </div>
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-slate-500 mb-1.5">应对策略</label>
-        <textarea value={form.strategy} onChange={e => set('strategy', e.target.value)} className="input" rows={3} placeholder="如何应对此风险？" />
-      </div>
-      <div className="flex justify-end gap-2 pt-3" style={{ borderTop: '1px solid rgba(241,245,249,0.5)' }}>
-        <button type="button" onClick={onCancel} className="btn btn-secondary">取消</button>
-        <button type="submit" disabled={submitting} className="btn btn-primary flex items-center gap-1.5">
-          {submitting && <Loader2 size={14} className="animate-spin" />}保存
-        </button>
-      </div>
+      <div><label className="block text-xs font-medium text-slate-500 mb-1.5">下一步怎么处理</label><textarea value={form.strategy} onChange={(e) => setForm((value) => ({ ...value, strategy: e.target.value }))} className="input" rows={2} placeholder="写一个具体动作，而不是泛泛的应对策略" /></div>
+      <div className="flex justify-end gap-2 pt-3 border-t border-slate-100"><button type="button" onClick={onCancel} className="btn btn-secondary">取消</button><button type="submit" disabled={submitting} className="btn btn-primary">{submitting && <Loader2 size={14} className="animate-spin" />}保存</button></div>
     </form>
   );
 }

@@ -1,5 +1,9 @@
 node_modules/
 dist/
+venv/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
 *.log
 *.db
 server/uploads/
@@ -8,8 +12,16 @@ server/backups/
 .env.local
 .env.production
 .vite/
+.runtime/
+.workbench-staging/
+server_node/
+deploy/
+mentor-system-blue-handdrawn-v2.png
 .DS_Store
 Thumbs.db
 *.swp
 .idea/
 .vscode/
+
+.next/
+.turbo/

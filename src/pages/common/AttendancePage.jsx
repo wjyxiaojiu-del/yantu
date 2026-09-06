@@ -20,7 +20,7 @@ function formatYMD(d) {
 export default function AttendancePage() {
   const { user } = useAuth();
   const toast = useToast();
-  const isMentor = user?.role === 'mentor';
+  const isMentor = false;
   const [records, setRecords] = useState([]);
   const [stats, setStats] = useState(null);
   const [todayRecord, setTodayRecord] = useState(null);
@@ -87,8 +87,6 @@ export default function AttendancePage() {
   const handleCheckIn = async () => {
     try {
       const res = await api.checkIn({
-        user_id: user?.id,
-        student_id: user?.student_id || null,
         work_content: workContent,
         check_type: 'normal',
       });
@@ -138,8 +136,8 @@ export default function AttendancePage() {
             <Clock className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-800">考勤打卡</h1>
-            <p className="text-xs text-slate-400">{isMentor ? '学生工时统计与考勤管理' : '记录每日工作时长'}</p>
+            <h1 className="text-xl font-bold text-slate-800">专注记录</h1>
+            <p className="text-xs text-slate-400">记录每日工作时长与完成内容</p>
           </div>
         </div>
       </div>

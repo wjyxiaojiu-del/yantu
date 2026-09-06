@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 import api from '../api';
 
 const AuthContext = createContext(null);
@@ -13,56 +13,62 @@ export function AuthProvider({ children }) {
   const setToken = (t) => { if (t) localStorage.setItem('auth-token', t); else localStorage.removeItem('auth-token'); };
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      setIsLoading(false);
-      return;
-    }
-    api.getMe()
-      .then(data => { if (data.user) setUser(withTenants(data)); })
-      .catch(() => setToken(null))
-      .finally(() => setIsLoading(false));
+    const startLocalSession = async () => {
+      try {
+        let data = null;
+        if (getToken()) {
+          try {
+            data = await api.getMe();
+          } catch {
+            setToken(null);
+          }
+        }
+        if (!data?.user) {
+          try {
+            data = await api.localSession();
+            setToken(data.token);
+          } catch {
+            data = null;
+          }
+        }
+        setUser(data?.user ? withTenants(data) : null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    startLocalSession();
   }, []);
 
-  // 监听全局 401 事件：token 过期或被注销时强制下线
+  // Token 失效时自动重建本地会话。
   useEffect(() => {
-    const handler = () => { setUser(null); };
+    const handler = async () => {
+      try {
+        const data = await api.localSession();
+        setToken(data.token);
+        setUser(withTenants(data));
+      } catch {
+        setUser(null);
+      }
+    };
     window.addEventListener('auth:unauthorized', handler);
     return () => window.removeEventListener('auth:unauthorized', handler);
   }, []);
 
-  const login = useCallback(async (phone, password) => {
-    const res = await api.login(phone, password);
-    setToken(res.token);
-    const u = withTenants(res);
-    setUser(u);
-    return u;
-  }, []);
+  const login = async (password) => {
+    const data = await api.login('local-owner', password);
+    setToken(data.token);
+    setUser(withTenants(data));
+    return data.user;
+  };
 
-  const loginSms = useCallback(async (phone, code) => {
-    const res = await api.loginSms(phone, code);
-    setToken(res.token);
-    const u = withTenants(res);
-    setUser(u);
-    return u;
-  }, []);
-
-  const register = useCallback(async (data) => {
-    const res = await api.register(data);
-    setToken(res.token);
-    const u = withTenants(res);
-    setUser(u);
-    return u;
-  }, []);
-
-  const logout = useCallback(async () => {
-    await api.logout();
+  const logout = async () => {
+    try { await api.logout(); } catch {}
     setToken(null);
     setUser(null);
-  }, []);
+  };
 
   return (
-    <AuthContext.Provider value={{ user, isLoggedIn: !!user, isLoading, login, loginSms, register, logout }}>
+    <AuthContext.Provider value={{ user, isLoggedIn: !!user, isLoading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -3,7 +3,9 @@ const BASE = '/api';
 // GET 请求内存缓存：相同 URL 在 TTL 内直接复用响应，避免页面切换时重复请求
 const _cache = new Map();
 const _inflight = new Map();
-const CACHE_TTL = 60_000; // 60秒
+// Read data stays warm between sidebar visits. Every write clears this cache,
+// so a longer TTL improves navigation without leaving edited data stale.
+const CACHE_TTL = 5 * 60_000;
 
 class ApiError extends Error {
   constructor(status, message) {
@@ -21,29 +23,33 @@ function setLoading(delta) {
 }
 
 async function request(url, options = {}) {
+  const { cache: cacheOption = true, ...fetchOptions } = options;
   const isGet = !options.method || options.method === 'GET';
+  const trackGlobalLoading = !isGet && fetchOptions.globalLoading !== false;
   const fullUrl = `${BASE}${url}`;
 
   // GET 请求走缓存
-  if (isGet) {
+  if (isGet && cacheOption !== false) {
     const cached = _cache.get(fullUrl);
     if (cached && Date.now() - cached.ts < CACHE_TTL) return cached.data;
     // 相同 URL 正在请求中，复用 Promise 避免重复发送
     if (_inflight.has(fullUrl)) return _inflight.get(fullUrl);
   }
 
-  setLoading(1);
+  // Pages already own their local loading/skeleton state. Covering the entire
+  // app for background GETs made sidebar navigation feel blocked.
+  if (trackGlobalLoading) setLoading(1);
   const p = (async () => {
     try {
-      const headers = { ...options.headers };
-      if (!(options.body instanceof FormData) && !headers['Content-Type']) {
+      const headers = { ...fetchOptions.headers };
+      if (!(fetchOptions.body instanceof FormData) && !headers['Content-Type']) {
         headers['Content-Type'] = 'application/json';
       }
       const token = typeof window !== 'undefined' ? localStorage.getItem('auth-token') : null;
       if (token) headers['Authorization'] = `Bearer ${token}`;
       const tenantId = typeof window !== 'undefined' ? localStorage.getItem('tenant-id') : null;
       if (tenantId) headers['X-Tenant-Id'] = tenantId;
-      const res = await fetch(fullUrl, { headers, ...options });
+      const res = await fetch(fullUrl, { headers, ...fetchOptions });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         // 401 全局处理：清除 token 并通知应用层跳转
@@ -51,18 +57,18 @@ async function request(url, options = {}) {
           localStorage.removeItem('auth-token');
           window.dispatchEvent(new CustomEvent('auth:unauthorized'));
         }
-        throw new ApiError(res.status, body.error || `请求失败 (${res.status})`);
+        throw new ApiError(res.status, body.error || body.detail || `请求失败 (${res.status})`);
       }
       const data = await res.json();
-      if (isGet) _cache.set(fullUrl, { data, ts: Date.now() });
+      if (isGet && cacheOption !== false) _cache.set(fullUrl, { data, ts: Date.now() });
       return data;
     } finally {
-      setLoading(-1);
-      if (isGet) _inflight.delete(fullUrl);
+      if (trackGlobalLoading) setLoading(-1);
+      if (isGet && cacheOption !== false) _inflight.delete(fullUrl);
     }
   })();
 
-  if (isGet) _inflight.set(fullUrl, p);
+  if (isGet && cacheOption !== false) _inflight.set(fullUrl, p);
   return p;
 }
 
@@ -105,6 +111,7 @@ const api = {
   // Students
   getStudents: GET('/mentor/students'),
   getStudent: (id) => request(`/mentor/students/${id}`),
+  getMyStudentProfile: () => request('/mentor/students/me'),
   createStudent: POST('/mentor/students'),
   updateStudent: (id, data) => write(`/mentor/students/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteStudent: (id) => write(`/mentor/students/${id}`, { method: 'DELETE' }),
@@ -139,6 +146,7 @@ const api = {
   markNotificationRead: (id) => write(`/mentor/notifications/${id}/read`, { method: 'POST' }),
   markAllNotificationsRead: (params = {}) => write(`/mentor/notifications/mark-all-read${qs(params)}`, { method: 'POST' }),
   deleteNotification: (id) => write(`/mentor/notifications/${id}`, { method: 'DELETE' }),
+  sendPersonalReminder: (data) => write('/mentor/notifications/remind', { method: 'POST', body: JSON.stringify(data) }),
 
   // Calendar
   getCalendar: GET_PARAMS('/mentor/calendar'),
@@ -149,10 +157,6 @@ const api = {
   getAttendance: GET_PARAMS('/mentor/attendance'),
   getAttendanceStats: GET_PARAMS('/mentor/attendance/stats'),
 
-  // CSV export (returns full URL; use Authorization header via fetch)
-  exportStudentsCsvUrl: '/api/mentor/export/students.csv',
-  exportTasksCsvUrl: '/api/mentor/export/tasks.csv',
-  exportAchievementsCsvUrl: '/api/mentor/export/achievements.csv',
   downloadCsv: async (path) => {
     const token = localStorage.getItem('auth-token') || '';
     const tenantId = localStorage.getItem('tenant-id') || '';
@@ -202,30 +206,52 @@ const api = {
   getAgileProjects: GET('/agile/projects'),
   getAgileProjectStats: (id) => request(`/agile/projects/${id}/stats`),
   getAgileProjectMilestones: (id) => request(`/agile/projects/${id}/milestones`),
-  getAgileProjectSprints: (id) => request(`/agile/projects/${id}/sprints`),
   getAgileProjectStories: (id) => request(`/agile/projects/${id}/stories`),
 
   // Agile Native APIs
   getProjects: GET('/projects'),
   getProject: GET_ID('/projects'),
   getProjectStats: (id) => request(`/projects?id=${id}&action=stats`),
+  createProject: POST('/projects'),
+  updateProject: PUT('/projects'),
+  deleteProject: DEL('/projects'),
 
   getStories: GET_PARAMS('/stories'),
   createStory: POST('/stories'),
   updateStory: PUT('/stories'),
   deleteStory: DEL('/stories'),
 
-  getSprints: GET_PARAMS('/sprints'),
-  getSprint: GET_ID('/sprints'),
-  getSprintStats: (id) => request(`/sprints?id=${id}&action=stats`),
-  createSprint: POST('/sprints'),
-  updateSprint: PUT('/sprints'),
-  deleteSprint: DEL('/sprints'),
+  getInboxItems: GET_PARAMS('/inbox-items'),
+  createInboxItem: POST('/inbox-items'),
+  updateInboxItem: PUT('/inbox-items'),
+  deleteInboxItem: DEL('/inbox-items'),
+  convertInboxItem: (id, data) => write(`/inbox-items/${id}/convert`, { method: 'POST', body: JSON.stringify(data) }),
 
-  getStandups: GET_PARAMS('/standups'),
-  createStandup: POST('/standups'),
-  updateStandup: PUT('/standups'),
-  deleteStandup: DEL('/standups'),
+  getScheduleItems: GET_PARAMS('/schedule-items'),
+  createScheduleItem: POST('/schedule-items'),
+  updateScheduleItem: PUT('/schedule-items'),
+  deleteScheduleItem: DEL('/schedule-items'),
+
+  searchWorkspace: GET_PARAMS('/search/global'),
+  getResearchMapNodes: GET_PARAMS('/research-map/nodes'),
+  createResearchMapNode: POST('/research-map/nodes'),
+  updateResearchMapNode: PUT('/research-map/nodes'),
+  deleteResearchMapNode: DEL('/research-map/nodes'),
+  getResearchMapEdges: GET_PARAMS('/research-map/edges'),
+  createResearchMapEdge: POST('/research-map/edges'),
+  updateResearchMapEdge: PUT('/research-map/edges'),
+  deleteResearchMapEdge: DEL('/research-map/edges'),
+  getResearchMapSummary: GET_PARAMS('/research-map/summary'),
+
+  getAgileTasks: GET_PARAMS('/tasks'),
+  createAgileTask: POST('/tasks'),
+  updateAgileTask: PUT('/tasks'),
+  deleteAgileTask: DEL('/tasks'),
+
+  getDailyLogs: GET_PARAMS('/daily-logs'),
+  createDailyLog: POST('/daily-logs'),
+  updateDailyLog: PUT('/daily-logs'),
+  deleteDailyLog: DEL('/daily-logs'),
 
   getRisks: GET_PARAMS('/risks'),
   createRisk: POST('/risks'),
@@ -241,29 +267,43 @@ const api = {
   createLiterature: POST('/literature'),
   updateLiterature: PUT('/literature'),
   deleteLiterature: DEL('/literature'),
+  createCodexJob: (data) => write('/codex/jobs', { method: 'POST', body: JSON.stringify(data) }),
+  getCodexJobs: (projectId) => request(`/codex/jobs${projectId ? `?projectId=${projectId}` : ''}`, { cache: false }),
+  retryCodexJob: (id) => write(`/codex/jobs/${id}/retry`, { method: 'POST' }),
+  getCodexWorkerStatus: () => request('/codex/workers/status', { cache: false }),
+  getSystemHealth: () => request('/system/health', { cache: false }),
+  getRecoveryBackups: () => request('/system/recovery-backups', { cache: false }),
+  createRecoveryBackup: () => write('/system/backup', { method: 'POST' }),
+  restoreRecoveryBackup: (file) => write('/system/restore', { method: 'POST', body: (() => { const data = new FormData(); data.append('file', file); return data; })() }),
+  downloadRecoveryBackup: async (name) => {
+    const res = await fetch(`/api/system/recovery-backups/${encodeURIComponent(name)}`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('auth-token') || ''}`,
+        'X-Tenant-Id': localStorage.getItem('tenant-id') || '',
+      },
+    });
+    if (!res.ok) throw new Error('下载恢复快照失败');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = name;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  },
+  getWeeklyReviewSummary: (params = {}) => request(`/codex/weekly-reviews/summary${qs(params)}`, { cache: false }),
+  getWeeklyReviews: (params = {}) => request(`/codex/weekly-reviews${qs(params)}`, { cache: false }),
+  getWeeklyReview: (id) => request(`/codex/weekly-reviews/${id}`, { cache: false }),
+  createWeeklyReview: (data) => write('/codex/weekly-reviews', { method: 'POST', body: JSON.stringify(data) }),
+  updateWeeklyReview: (id, data) => write(`/codex/weekly-reviews?id=${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 
   // Auth
+  localSession: () => write('/auth/local-session', { method: 'POST' }),
   login: (phone, password) => write('/auth/login', { method: 'POST', body: JSON.stringify({ phone, password }) }),
   loginSms: (phone, code) => write('/auth/login-sms', { method: 'POST', body: JSON.stringify({ phone, code }) }),
   register: (data) => write('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
   getMe: GET('/auth/me'),
   logout: () => write('/auth/logout', { method: 'POST' }),
-
-  // Reports
-  getReportDashboard: () => request('/reports/dashboard'),
-  getStudentReport: (id) => request(`/reports/student/${id}`),
-
-  // Weekly Reports
-  getWeeklyReports: (params = {}) => request(`/weekly-reports${qs(params)}`),
-  getWeeklyReportStats: (params = {}) => request(`/weekly-reports/stats${qs(params)}`),
-  getWeeklyReport: (id) => request(`/weekly-reports/${id}`),
-  generateWeeklyReport: (data) => write('/weekly-reports/generate', { method: 'POST', body: JSON.stringify(data) }),
-  submitWeeklyReport: (id) => write(`/weekly-reports/${id}/submit`, { method: 'PUT' }),
-  deleteWeeklyReport: (id) => write(`/weekly-reports/${id}`, { method: 'DELETE' }),
-
-  // Growth
-  getGrowthStudents: () => request('/growth/students'),
-  getGrowthStudent: (id) => request(`/growth/student/${id}`),
 
   // --- 论文审阅 ---
   uploadPaper: (data) => write('/papers', { method: 'POST', body: JSON.stringify(data) }),
@@ -272,7 +312,6 @@ const api = {
   getPaperFile: (id) => request(`/papers/${id}/file`),
   getPaperReviews: (id) => request(`/papers/${id}/reviews`),
   addPaperReview: (id, data) => write(`/papers/${id}/reviews`, { method: 'POST', body: JSON.stringify(data) }),
-  analyzePaper: (id) => write(`/papers/${id}/analyze`, { method: 'POST' }),
   deletePaper: (id) => write(`/papers/${id}`, { method: 'DELETE' }),
 
   // Tenant
@@ -290,7 +329,10 @@ const api = {
 
   // Backup
   downloadBackup: () => fetch('/api/backup', {
-    headers: { 'Authorization': `Bearer ${localStorage.getItem('auth-token') || ''}` }
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('auth-token') || ''}`,
+      'X-Tenant-Id': localStorage.getItem('tenant-id') || '',
+    }
   }),
 
   clearCache: () => _cache.clear(),

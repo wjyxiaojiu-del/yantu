@@ -20,16 +20,15 @@ export default function Papers() {
   const [reviewContent, setReviewContent] = useState('');
   const [reviewSection, setReviewSection] = useState('');
   const [showUpload, setShowUpload] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
   const [uploadForm, setUploadForm] = useState({ title: '', author: '', abstract: '', keywords: '', file: null });
   const toast = useToast();
 
-  const isMentor = user?.role === 'mentor' || user?.role === 'admin' || user?.role === 'owner';
+  const isMentor = false;
 
   const loadPapers = useCallback(async () => {
     try {
       setLoading(true);
-      const params = isMentor ? '' : `student_id=${user.id}`;
+      const params = `student_id=${user.id}`;
       const res = await api.getPapers(params);
       setPapers(res.papers || []);
     } catch (e) {
@@ -62,22 +61,6 @@ export default function Papers() {
       console.error(e);
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function handleAnalyze() {
-    if (!selectedPaper) return;
-    try {
-      setAnalyzing(true);
-      const res = await api.analyzePaper(selectedPaper.id);
-      setSelectedPaper(prev => ({ ...prev, ai_summary: res.aiSummary, ai_score: res.aiScore }));
-      toast.success('AI 审阅完成');
-    } catch (e) {
-      console.error(e);
-      const msg = e?.message || 'AI 服务暂时不可用，请稍后重试';
-      toast.error(msg);
-    } finally {
-      setAnalyzing(false);
     }
   }
 
@@ -144,12 +127,6 @@ export default function Papers() {
             className="flex items-center gap-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
             <ChevronLeft size={20} /> 返回列表
           </button>
-          {isMentor && (
-            <button onClick={handleAnalyze} disabled={analyzing}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50">
-              <Sparkles size={18} /> {analyzing ? '分析中...' : 'AI 审阅'}
-            </button>
-          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -167,13 +144,13 @@ export default function Papers() {
             )}
           </div>
 
-          {/* 批注与 AI 分析侧边栏 */}
+          {/* 批注与历史分析侧边栏 */}
           <div className="space-y-6">
             {selectedPaper.ai_summary && (
               <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Sparkles size={16} className="text-purple-600" />
-                  <h3 className="font-semibold text-purple-800 dark:text-purple-300">AI 分析结果</h3>
+                  <h3 className="font-semibold text-purple-800 dark:text-purple-300">历史分析结果</h3>
                   <span className="ml-auto text-sm font-bold text-purple-600">{selectedPaper.ai_score}分</span>
                 </div>
                 <div className="text-sm text-purple-700 dark:text-purple-300 whitespace-pre-line">{selectedPaper.ai_summary}</div>
@@ -228,7 +205,7 @@ export default function Papers() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold dark:text-white">论文审阅</h1>
+        <h1 className="text-2xl font-bold dark:text-white">我的论文</h1>
         <button onClick={() => setShowUpload(true)}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
           <Upload size={18} /> 上传论文
@@ -252,7 +229,7 @@ export default function Papers() {
                 {isMentor && <th className="px-4 py-3 text-left text-gray-600 dark:text-gray-300">学生</th>}
                 <th className="px-4 py-3 text-left text-gray-600 dark:text-gray-300">版本</th>
                 <th className="px-4 py-3 text-left text-gray-600 dark:text-gray-300">状态</th>
-                <th className="px-4 py-3 text-left text-gray-600 dark:text-gray-300">AI评分</th>
+                <th className="px-4 py-3 text-left text-gray-600 dark:text-gray-300">历史评分</th>
                 <th className="px-4 py-3 text-left text-gray-600 dark:text-gray-300">更新日期</th>
                 <th className="px-4 py-3 text-right text-gray-600 dark:text-gray-300">操作</th>
               </tr>

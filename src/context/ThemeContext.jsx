@@ -202,8 +202,8 @@ function applyThemeVars(c) {
 
 export function ThemeProvider({ children }) {
   const [themeId, setThemeId] = useState(() => {
-    if (typeof window !== 'undefined') return localStorage.getItem(STORAGE_KEY) || 'warm-orange';
-    return 'warm-orange';
+    if (typeof window !== 'undefined') return localStorage.getItem(STORAGE_KEY) || 'nature-chemistry';
+    return 'nature-chemistry';
   });
 
   const theme = themes.find(t => t.id === themeId) || themes[0];

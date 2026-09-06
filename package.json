@@ -1,41 +1,33 @@
 {
-  "name": "mentor-management-system",
+  "name": "xiaoj-research-workbench",
   "private": true,
-  "version": "1.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "server": "node server/index.js",
-    "start": "node server/index.js",
-    "seed": "node server/seed.js"
+    "server": "venv\\Scripts\\python.exe -m server.main",
+    "start": "powershell -ExecutionPolicy Bypass -File .\\start-workbench.ps1",
+    "check": "venv\\Scripts\\python.exe -m compileall -q server && vite build",
+    "test:browser": "node tools/workbench-browser-smoke.mjs",
+    "test:tasks": "node tools/task-todolist-smoke.mjs",
+    "test:research-search": "node tools/research-search-smoke.mjs",
+    "test:production-auth": "venv\\Scripts\\python.exe tools/production-auth-smoke.py"
   },
   "dependencies": {
-    "@dnd-kit/core": "^6.3.1",
-    "@dnd-kit/sortable": "^10.0.0",
-    "@dnd-kit/utilities": "^3.2.2",
-    "@sentry/node": "^10.55.0",
-    "@sentry/react": "^10.55.0",
-    "compression": "^1.8.1",
-    "cors": "^2.8.5",
-    "dotenv": "^17.4.2",
-    "express": "^4.21.2",
     "lucide-react": "^0.474.0",
-    "multer": "^2.1.1",
-    "openai": "^6.39.0",
-    "pdf-parse": "^2.4.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.1.5",
-    "recharts": "^2.15.1",
-    "sql.js": "^1.11.0"
+    "recharts": "^2.15.1"
   },
   "devDependencies": {
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "playwright-core": "^1.62.1",
     "postcss": "^8.5.1",
     "tailwindcss": "^3.4.17",
     "vite": "^6.1.0"

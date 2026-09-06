@@ -6,7 +6,7 @@ const TenantContext = createContext(null);
 const STORAGE_KEY = 'tenant-id';
 
 export function TenantProvider({ children }) {
-  const { user, isLoggedIn } = useAuth();
+  const { user, isLoggedIn, isLoading: isAuthLoading } = useAuth();
   const [tenants, setTenants] = useState([]);
   const [currentTenantId, setCurrentTenantId] = useState(() => {
     if (typeof window === 'undefined') return null;
@@ -16,18 +16,30 @@ export function TenantProvider({ children }) {
 
   // Sync tenants from auth user
   useEffect(() => {
-    if (user?.tenants) {
-      setTenants(user.tenants);
-      // Auto-select first tenant if none selected
-      if (!currentTenantId && user.tenants.length > 0) {
-        const firstId = String(user.tenants[0].id);
+    if (isAuthLoading) return;
+
+    if (user?.tenants?.length) {
+      const nextTenants = user.tenants.map(t => ({
+        ...t,
+        tenant_role: t.tenant_role || t.my_role,
+      }));
+      setTenants(nextTenants);
+
+      const currentIsValid = nextTenants.some(t => String(t.id) === String(currentTenantId));
+      if (!currentIsValid) {
+        const firstId = String(nextTenants[0].id);
         setCurrentTenantId(firstId);
         localStorage.setItem(STORAGE_KEY, firstId);
+        if (typeof window !== 'undefined' && window.__apiClearCache) {
+          window.__apiClearCache();
+        }
       }
     } else {
       setTenants([]);
+      setCurrentTenantId(null);
+      localStorage.removeItem(STORAGE_KEY);
     }
-  }, [user?.tenants]);
+  }, [user, isAuthLoading, currentTenantId]);
 
   const currentTenant = tenants.find(t => String(t.id) === String(currentTenantId)) || null;
 
@@ -52,18 +64,30 @@ export function TenantProvider({ children }) {
     if (!isLoggedIn) return;
     setIsLoading(true);
     try {
-      const res = await fetch('/api/tenants/my', {
+      const response = await fetch('/api/tenants/my', {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('auth-token')}` }
-      }).then(r => r.json());
+      });
+      if (!response.ok) throw new Error(`课题组列表加载失败 (${response.status})`);
+      const res = await response.json();
       if (res.tenants) {
-        setTenants(res.tenants);
+        const nextTenants = res.tenants.map(t => ({
+          ...t,
+          tenant_role: t.tenant_role || t.my_role,
+        }));
+        setTenants(nextTenants);
+        if (!nextTenants.some(t => String(t.id) === String(currentTenantId))) {
+          const firstId = nextTenants[0] ? String(nextTenants[0].id) : null;
+          setCurrentTenantId(firstId);
+          if (firstId) localStorage.setItem(STORAGE_KEY, firstId);
+          else localStorage.removeItem(STORAGE_KEY);
+        }
       }
     } catch (e) {
       console.error('Failed to refresh tenants:', e);
     } finally {
       setIsLoading(false);
     }
-  }, [isLoggedIn]);
+  }, [isLoggedIn, currentTenantId]);
 
   const value = {
     tenants,

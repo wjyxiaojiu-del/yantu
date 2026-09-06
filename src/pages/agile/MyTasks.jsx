@@ -7,12 +7,12 @@ import api from '../../api';
 import { useToast } from '../../components/Toast';
 import { SkeletonSpinner } from '../../components/LoadingSkeleton';
 import ErrorState from '../../components/ErrorState';
+import { useProject } from '../../context/ProjectContext';
 
 export default function MyTasks() {
   const toast = useToast();
-  const [mentorTasks, setMentorTasks] = useState([]);
+  const { projectId } = useProject();
   const [agileTasks, setAgileTasks] = useState([]);
-  const [sprints, setSprints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all');
@@ -21,17 +21,8 @@ export default function MyTasks() {
 
   const load = async () => {
     try {
-      const [mt, s] = await Promise.all([
-        api.getTasks(),
-        api.getSprints({ project_id: 1 }),
-      ]);
-      setMentorTasks(mt);
-      setSprints(s);
-      const activeSprint = s.find(sp => sp.status === 'active') || s[0];
-      if (activeSprint) {
-        const at = await api.getTasks({ sprint_id: activeSprint.id });
-        setAgileTasks(at);
-      }
+      const allTasks = await api.getAgileTasks({ project_id: projectId });
+      setAgileTasks(Array.isArray(allTasks) ? allTasks : []);
       setError(null);
     } catch (e) {
       setError(e.message);
@@ -40,42 +31,29 @@ export default function MyTasks() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { if (projectId) load(); }, [projectId]);
 
   const today = new Date().toISOString().split('T')[0];
 
   const unifiedTasks = useMemo(() => {
     const items = [];
-    mentorTasks.forEach(t => {
-      items.push({
-        id: `mentor-${t.id}`,
-        source: 'mentor',
-        sourceLabel: '导师指派',
-        title: t.title,
-        description: t.description,
-        deadline: t.deadline,
-        priority: t.priority,
-        status: t.status === 'completed' ? 'done' : 'todo',
-        category: t.category,
-        student_name: t.student_name,
-      });
-    });
     agileTasks.forEach(t => {
       items.push({
         id: `agile-${t.id}`,
+        rawId: t.id,
         source: 'agile',
         sourceLabel: '项目看板',
         title: t.title,
         description: t.story_title || '',
         deadline: t.due_date,
-        priority: t.priority || 'B',
+        priority: t.priority === 'D' ? 'L' : (t.priority || 'B'),
         status: t.status,
         category: '',
         story_points: t.story_points,
       });
     });
     return items;
-  }, [mentorTasks, agileTasks]);
+  }, [agileTasks]);
 
   const filtered = useMemo(() => {
     return unifiedTasks.filter(t => {
@@ -85,8 +63,6 @@ export default function MyTasks() {
       if (filter === 'pending') matchFilter = t.status !== 'done';
       else if (filter === 'done') matchFilter = t.status === 'done';
       else if (filter === 'overdue') matchFilter = t.deadline && t.deadline < today && t.status !== 'done';
-      else if (filter === 'mentor') matchFilter = t.source === 'mentor';
-      else if (filter === 'agile') matchFilter = t.source === 'agile';
       return matchSearch && matchFilter;
     });
   }, [unifiedTasks, filter, search, today]);
@@ -103,11 +79,24 @@ export default function MyTasks() {
     return { total, done, overdue, dueSoon, rate: total ? Math.round(done / total * 100) : 0 };
   }, [unifiedTasks, today]);
 
-  const priorityColors = { urgent: 'badge-s', high: 'badge-a', S: 'badge-s', A: 'badge-a', B: 'badge-b', C: 'badge-c', D: 'badge-c', medium: 'badge-b', low: 'badge-c' };
-  const priorityLabels = { urgent: '紧急', high: '高', medium: '中', low: '低', S: 'S', A: 'A', B: 'B', C: 'C', D: 'D' };
+  const priorityColors = { urgent: 'badge-s', high: 'badge-a', S: 'badge-s', A: 'badge-a', B: 'badge-b', C: 'badge-c', D: 'badge-c', L: 'badge-c', medium: 'badge-b', low: 'badge-c' };
+  const priorityLabels = { urgent: 'S', high: 'A', medium: 'B', low: 'C', S: 'S', A: 'A', B: 'B', C: 'C', D: 'L', L: 'L' };
   const statusLabels = { todo: '待办', backlog: '待办', this_sprint: '本周', in_progress: '进行中', verify: '待验收', done: '已完成' };
   const statusColors = { todo: 'text-slate-400', backlog: 'text-slate-400', this_sprint: 'text-blue-500', in_progress: 'text-amber-500', verify: 'text-purple-500', done: 'text-emerald-500' };
   const categoryLabels = { reading: '文献阅读', experiment: '实验研究', writing: '论文写作', general: '一般任务', coding: '代码开发' };
+
+  const handleToggleDone = async (task) => {
+    const previousStatus = task.status;
+    const nextStatus = previousStatus === 'done' ? 'todo' : 'done';
+    setAgileTasks((current) => current.map((item) => item.id === task.rawId ? { ...item, status: nextStatus } : item));
+    try {
+      await api.updateAgileTask(task.rawId, { status: nextStatus });
+      toast.success(nextStatus === 'done' ? '任务已完成' : '任务已重新打开');
+    } catch (e) {
+      setAgileTasks((current) => current.map((item) => item.id === task.rawId ? { ...item, status: previousStatus } : item));
+      toast.error('任务状态更新失败');
+    }
+  };
 
   if (loading) return <SkeletonSpinner />;
   if (error) return <ErrorState message={error} onRetry={load} />;
@@ -116,7 +105,7 @@ export default function MyTasks() {
     <div className="space-y-5 max-w-[1400px]">
       <div>
         <h1 className="text-2xl font-bold text-slate-900 tracking-tight">我的任务</h1>
-        <p className="text-sm text-slate-400 mt-1">导师指派 + 项目看板，统一视图</p>
+        <p className="text-sm text-slate-400 mt-1">集中查看当前项目中的全部任务</p>
       </div>
 
       {/* Stats */}
@@ -147,7 +136,7 @@ export default function MyTasks() {
           <Filter className="w-4 h-4 text-slate-400" />
           {[
             { k: 'all', l: '全部' }, { k: 'pending', l: '进行中' }, { k: 'done', l: '已完成' },
-            { k: 'overdue', l: '已逾期' }, { k: 'mentor', l: '导师指派' }, { k: 'agile', l: '项目看板' },
+            { k: 'overdue', l: '已逾期' },
           ].map(f => (
             <button key={f.k} onClick={() => setFilter(f.k)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filter === f.k ? 'text-white shadow-md' : 'bg-white/60 text-slate-500 hover:bg-white'}`}
@@ -168,10 +157,10 @@ export default function MyTasks() {
               style={{ borderLeft: isOverdue ? '3px solid #ef4444' : '3px solid transparent' }}>
               <div className="flex items-center gap-3 p-4 cursor-pointer hover:bg-slate-50/40 transition-all"
                 onClick={() => setExpandedId(isExpanded ? null : task.id)}>
-                <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all
-                  ${task.status === 'done' ? 'bg-emerald-500 border-emerald-500' : 'border-slate-200'}`}>
+                <button onClick={(event) => { event.stopPropagation(); handleToggleDone(task); }} aria-label={task.status === 'done' ? '重新打开任务' : '完成任务'} className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all
+                  ${task.status === 'done' ? 'bg-emerald-500 border-emerald-500' : 'border-slate-200 hover:border-emerald-400'}`}>
                   {task.status === 'done' && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
-                </div>
+                </button>
                 <div className="flex-1 min-w-0">
                   <p className={`text-sm font-medium ${task.status === 'done' ? 'text-slate-400 line-through' : 'text-slate-700'}`}>{task.title}</p>
                   <div className="flex items-center gap-2 mt-1">
