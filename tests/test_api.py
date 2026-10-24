@@ -94,7 +94,13 @@ class TestAuthFlow:
     def test_register_duplicate_phone_rejected(self, client):
         phone = "13600000001"
         _register_and_login(client, phone=phone)
-        client.post("/api/auth/send-sms", json={"phone": phone, "purpose": "register"})
+        # 同手机号 60 秒冷却期内无法再次发码；直接重置已用验证码来构造重复注册请求
+        conn = sqlite3.connect(get_db_path())
+        try:
+            conn.execute("UPDATE sms_codes SET used = 0 WHERE phone = ?", (phone,))
+            conn.commit()
+        finally:
+            conn.close()
         r = client.post(
             "/api/auth/register",
             json={

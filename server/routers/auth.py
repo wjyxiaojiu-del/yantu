@@ -4,7 +4,7 @@ import hashlib
 import uuid
 import time
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Request, Response, HTTPException, Depends, Header
 from pydantic import BaseModel, Field
 from typing import Optional
@@ -99,7 +99,10 @@ def can_send_sms(phone: str) -> bool:
     except Exception:
         # Fallback if parse fails
         return True
-    diff = (datetime.now() - created_time).total_seconds()
+    # created_at 由 sqlite datetime('now') 生成，是 UTC；必须用 UTC 当前时间比较，
+    # 否则在非 UTC 机器上差值恒为时区偏移，冷却形同虚设
+    now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+    diff = (now_utc - created_time).total_seconds()
     return diff > SMS_COOLDOWN_SECONDS
 
 def verify_sms_code(phone: str, code: str, purpose: str) -> bool:
