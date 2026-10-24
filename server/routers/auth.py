@@ -5,7 +5,7 @@ import uuid
 import time
 import threading
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Request, Response, HTTPException, Depends, Header
+from fastapi import APIRouter, Request, Response, HTTPException, Depends, Header, UploadFile, File
 from pydantic import BaseModel, Field
 from typing import Optional
 
@@ -13,6 +13,12 @@ from server.database import query_one, query_all, run_sql
 from server.dependencies import get_current_user
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+# 与 server.main 相同的公式，避免循环导入
+UPLOAD_DIR = os.path.abspath(os.getenv("UPLOAD_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "uploads")))
+AVATAR_DIR = os.path.join(UPLOAD_DIR, "avatars")
+AVATAR_MAX_BYTES = 2 * 1024 * 1024
+AVATAR_ALLOWED_EXT = {"png", "jpg", "jpeg", "webp", "gif"}
 
 TOKEN_TTL_DAYS = 7
 SMS_COOLDOWN_SECONDS = 60
@@ -382,3 +388,58 @@ def logout(authorization: str = Header(None)):
         token = authorization[7:]
         run_sql("DELETE FROM auth_tokens WHERE token = ?", (token,))
     return {"success": True}
+
+
+# ---------- 个人资料：名称与头像 ----------
+
+class ProfileUpdateSchema(BaseModel):
+    name: Optional[str] = None
+
+def _current_user_row(user_id: int) -> dict:
+    return query_one("SELECT * FROM users WHERE id = ?", (user_id,))
+
+@router.put("/profile")
+def update_profile(body: ProfileUpdateSchema, user: dict = Depends(get_current_user)):
+    if body.name is None:
+        raise HTTPException(status_code=400, detail="没有需要更新的字段")
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="姓名不能为空")
+    if len(name) > 30:
+        raise HTTPException(status_code=400, detail="姓名不能超过 30 个字符")
+    run_sql(
+        "UPDATE users SET name = ?, updated_at = datetime('now') WHERE id = ?",
+        (name, user["id"]),
+    )
+    return {"success": True, "user": to_safe_user(_current_user_row(user["id"]))}
+
+@router.post("/avatar")
+async def upload_avatar(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+    ext = (file.filename or "").rsplit(".", 1)[-1].lower() if "." in (file.filename or "") else ""
+    if ext not in AVATAR_ALLOWED_EXT:
+        raise HTTPException(status_code=400, detail="只支持 png / jpg / webp / gif 图片")
+    content = await file.read()
+    if len(content) > AVATAR_MAX_BYTES:
+        raise HTTPException(status_code=400, detail="头像图片不能超过 2MB")
+    if not content:
+        raise HTTPException(status_code=400, detail="头像图片为空")
+
+    os.makedirs(AVATAR_DIR, exist_ok=True)
+    stored_name = f"avatar-{user['id']}-{secrets.randbelow(10**9)}.{ext}"
+    with open(os.path.join(AVATAR_DIR, stored_name), "wb") as target:
+        target.write(content)
+
+    avatar_url = f"/uploads/avatars/{stored_name}"
+    run_sql(
+        "UPDATE users SET avatar = ?, updated_at = datetime('now') WHERE id = ?",
+        (avatar_url, user["id"]),
+    )
+    return {"success": True, "avatar": avatar_url, "user": to_safe_user(_current_user_row(user["id"]))}
+
+@router.delete("/avatar")
+def remove_avatar(user: dict = Depends(get_current_user)):
+    run_sql(
+        "UPDATE users SET avatar = NULL, updated_at = datetime('now') WHERE id = ?",
+        (user["id"],),
+    )
+    return {"success": True, "user": to_safe_user(_current_user_row(user["id"]))}

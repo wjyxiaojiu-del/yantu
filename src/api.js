@@ -314,6 +314,9 @@ const api = {
   register: (data) => write('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
   getMe: GET('/auth/me'),
   logout: () => write('/auth/logout', { method: 'POST' }),
+  updateProfile: (data) => write('/auth/profile', { method: 'PUT', body: JSON.stringify(data) }),
+  uploadAvatar: (formData) => write('/auth/avatar', { method: 'POST', body: formData }),
+  removeAvatar: () => write('/auth/avatar', { method: 'DELETE' }),
 
   // --- 论文审阅 ---
   uploadPaper: (data) => write('/papers', { method: 'POST', body: JSON.stringify(data) }),

@@ -61,6 +61,12 @@ export function AuthProvider({ children }) {
     return data.user;
   };
 
+  // 保存个人资料（名称/头像）后同步全局用户状态，tenants 等其余字段保留
+  const patchUser = (freshUser) => {
+    if (!freshUser) return;
+    setUser(prev => (prev ? { ...prev, ...freshUser } : { ...freshUser, tenants: [] }));
+  };
+
   const logout = async () => {
     try { await api.logout(); } catch {}
     setToken(null);
@@ -68,7 +74,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoggedIn: !!user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoggedIn: !!user, isLoading, login, logout, patchUser }}>
       {children}
     </AuthContext.Provider>
   );

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import ProfileModal, { AvatarView } from './ProfileModal';
 
 const primaryNavItems = [
   { path: '/agile/overview', label: '科研总览', icon: Gauge },
@@ -48,6 +49,7 @@ function WorkspaceSidebar() {
   const { theme, themeId, switchTheme, themes } = useTheme();
   const { user } = useAuth();
   const [showThemePicker, setShowThemePicker] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const pickerRef = useRef(null);
   const c = theme.colors;
 
@@ -155,22 +157,24 @@ function WorkspaceSidebar() {
 
       {/* User */}
       <div className="px-4 py-3 border-t border-white/[0.06]">
-        <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold relative"
-                style={{
-                  background: `linear-gradient(135deg, ${c.logoFrom}, ${c.logoTo})`,
-                  boxShadow: `0 2px 10px ${c.accent100 || 'rgba(0,0,0,0.1)'}`,
-                }}>
-                {user?.name?.[0] || '我'}
-                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2"
-                  style={{ borderColor: c.sidebarFrom }} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-xs font-semibold text-white/90 truncate">{user?.name || '我的账号'}</div>
-                <div className="text-[10px] text-white/50">{user?.title || '个人账户'}</div>
-              </div>
-            </div>
+        <button
+          onClick={() => setShowProfile(true)}
+          className="w-full flex items-center gap-3 rounded-xl p-1.5 -m-1.5 hover:bg-white/[0.06] transition-colors text-left"
+          aria-label="编辑个人资料"
+        >
+          <div className="relative shrink-0">
+            <AvatarView user={user} size={36} className="ring-2 ring-white/20" />
+            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2"
+              style={{ borderColor: c.sidebarFrom }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-semibold text-white/90 truncate">{user?.name || '我的账号'}</div>
+            <div className="text-[10px] text-white/50">{user?.title || '个人账户'}</div>
+          </div>
+        </button>
       </div>
+
+      {showProfile && <ProfileModal onClose={() => setShowProfile(false)} />}
     </aside>
   );
 }
