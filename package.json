@@ -12,6 +12,7 @@
     "check": "venv\\Scripts\\python.exe -m compileall -q server && vite build",
     "test:browser": "node tools/workbench-browser-smoke.mjs",
     "test:tasks": "node tools/task-todolist-smoke.mjs",
+    "test:sop": "node tools/sop-page-smoke.mjs",
     "test:research-search": "node tools/research-search-smoke.mjs",
     "test:production-auth": "venv\\Scripts\\python.exe tools/production-auth-smoke.py"
   },

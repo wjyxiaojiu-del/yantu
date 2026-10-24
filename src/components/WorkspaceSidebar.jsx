@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, ClipboardList, CalendarCheck, Award, Inbox,
   Atom, Sparkles, Palette, Check,
-  Kanban, Gauge, CalendarIcon, Clock, BookOpen, HeartPulse, Link2
+  Kanban, Gauge, CalendarIcon, Clock, BookOpen, HeartPulse, Link2, ListChecks
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
@@ -20,6 +20,7 @@ const primaryNavItems = [
 const secondaryNavItems = [
   { path: '/attendance', label: '专注记录', icon: Clock },
   { path: '/agile/backlog', label: '收集箱', icon: Inbox },
+  { path: '/agile/sop', label: 'SOP 流程', icon: ListChecks },
   { path: '/agile/risks', label: '风险管控', icon: Award },
   { path: '/calendar', label: '日程日历', icon: CalendarIcon },
   { path: '/agile/connection-health', label: '连接与恢复', icon: HeartPulse },

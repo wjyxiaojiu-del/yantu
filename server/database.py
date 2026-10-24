@@ -737,6 +737,45 @@ def init_db():
         )""")
 
         cursor.execute("""
+        CREATE TABLE IF NOT EXISTS sop_templates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tenant_id INTEGER NOT NULL,
+            project_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            description TEXT DEFAULT '',
+            category TEXT DEFAULT '其他',
+            tags TEXT DEFAULT '',
+            favorite INTEGER DEFAULT 0,
+            steps_json TEXT NOT NULL DEFAULT '[]',
+            version INTEGER DEFAULT 1,
+            last_used_at TEXT,
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (project_id) REFERENCES projects(id)
+        )""")
+
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS sop_instances (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tenant_id INTEGER NOT NULL,
+            project_id INTEGER NOT NULL,
+            template_id INTEGER,
+            name TEXT NOT NULL,
+            category TEXT DEFAULT '其他',
+            steps_json TEXT NOT NULL DEFAULT '[]',
+            variables_json TEXT NOT NULL DEFAULT '{}',
+            status TEXT NOT NULL DEFAULT 'running',
+            elapsed_ms INTEGER DEFAULT 0,
+            running_since TEXT,
+            note TEXT DEFAULT '',
+            started_at TEXT DEFAULT (datetime('now')),
+            ended_at TEXT,
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (project_id) REFERENCES projects(id)
+        )""")
+
+        cursor.execute("""
         CREATE TABLE IF NOT EXISTS obsidian_configs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             tenant_id INTEGER NOT NULL UNIQUE,
@@ -873,6 +912,8 @@ def init_db():
             'CREATE INDEX IF NOT EXISTS idx_schedule_project_date ON personal_schedule_items(tenant_id, project_id, date)',
             'CREATE UNIQUE INDEX IF NOT EXISTS idx_schedule_source_inbox ON personal_schedule_items(tenant_id, source_inbox_id)',
             'CREATE UNIQUE INDEX IF NOT EXISTS idx_schedule_legacy_source ON personal_schedule_items(tenant_id, project_id, source_legacy_id)',
+            'CREATE INDEX IF NOT EXISTS idx_sop_templates_project ON sop_templates(tenant_id, project_id, favorite, updated_at DESC)',
+            'CREATE INDEX IF NOT EXISTS idx_sop_instances_project_status ON sop_instances(tenant_id, project_id, status, updated_at DESC)',
         ]
         for idx in indexes:
             try:

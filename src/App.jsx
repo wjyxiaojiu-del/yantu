@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState, useEffect, useRef, memo } from 'react';
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
-import { Search, X, LayoutDashboard, ClipboardList, CalendarCheck, Award, Kanban, BookOpen, Bell, CalendarIcon, Clock, Gauge, ChevronDown, Plus, Pencil, Trash2, LockKeyhole, Eye, EyeOff, Loader2, HeartPulse, Link2 } from 'lucide-react';
+import { Search, X, LayoutDashboard, ClipboardList, CalendarCheck, Award, Kanban, BookOpen, Bell, CalendarIcon, Clock, Gauge, ChevronDown, Plus, Pencil, Trash2, LockKeyhole, Eye, EyeOff, Loader2, HeartPulse, Link2, ListChecks } from 'lucide-react';
 import { ThemeProvider } from './context/ThemeContext';
 import { ProjectProvider } from './context/ProjectContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -35,6 +35,7 @@ const pageLoaders = {
   weeklyReview: () => import('./pages/agile/WeeklyReview'),
   connectionHealth: () => import('./pages/agile/ConnectionHealth'),
   researchMap: () => import('./pages/agile/ResearchMap'),
+  sop: () => import('./pages/agile/SopFlow'),
 };
 
 const Papers = lazy(pageLoaders.papers);
@@ -52,6 +53,7 @@ const MyTasks = lazy(pageLoaders.myTasks);
 const WeeklyReview = lazy(pageLoaders.weeklyReview);
 const ConnectionHealth = lazy(pageLoaders.connectionHealth);
 const ResearchMap = lazy(pageLoaders.researchMap);
+const SopFlow = lazy(pageLoaders.sop);
 
 const primaryRouteLoaders = [
   pageLoaders.dashboard, pageLoaders.overview, pageLoaders.board, pageLoaders.literature, pageLoaders.backlog,
@@ -90,6 +92,7 @@ const personalPages = [
   { path: '/agile/risks', label: '风险管控', icon: Award },
   { path: '/agile/literature', label: '文献管理', icon: BookOpen },
   { path: '/agile/my-tasks', label: '我的任务', icon: ClipboardList },
+  { path: '/agile/sop', label: 'SOP 流程', icon: ListChecks },
   { path: '/papers', label: '我的论文', icon: BookOpen },
   ...commonPages,
 ];
@@ -122,6 +125,7 @@ const appRoutes = [
   { path: '/agile/risks', component: Risks },
   { path: '/agile/literature', component: Literature },
   { path: '/agile/my-tasks', component: MyTasks },
+  { path: '/agile/sop', component: SopFlow },
 ];
 
 const memoizedRoutes = appRoutes.map(r => ({ ...r, MemoComponent: memo(r.component) }));

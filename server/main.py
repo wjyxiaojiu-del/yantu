@@ -8,7 +8,7 @@ from datetime import datetime
 
 from server.database import init_db, run_sql, get_db_path
 from server.dependencies import get_current_user
-from server.routers import auth, tenant, mentor, agile, papers, search, codex, system, research_map
+from server.routers import auth, tenant, mentor, agile, papers, search, codex, system, research_map, sop
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_DIR = os.path.abspath(os.getenv("UPLOAD_DIR", os.path.join(BASE_DIR, "uploads")))
@@ -69,6 +69,7 @@ app.include_router(search.router, prefix="/api")
 app.include_router(codex.router, prefix="/api")
 app.include_router(system.router, prefix="/api")
 app.include_router(research_map.router, prefix="/api")
+app.include_router(sop.router, prefix="/api")
 
 # Database backup endpoint
 @app.get("/api/backup")

@@ -263,6 +263,16 @@ const api = {
   updateMilestone: PUT('/milestones'),
   deleteMilestone: DEL('/milestones'),
 
+  // SOP 流程
+  getSopTemplates: GET_PARAMS('/sop/templates'),
+  createSopTemplate: POST('/sop/templates'),
+  updateSopTemplate: PUT('/sop/templates'),
+  deleteSopTemplate: DEL('/sop/templates'),
+  getSopInstances: GET_PARAMS('/sop/instances'),
+  startSopInstance: POST('/sop/instances'),
+  updateSopInstance: PUT('/sop/instances'),
+  deleteSopInstance: DEL('/sop/instances'),
+
   getLiterature: GET_PARAMS('/literature'),
   createLiterature: POST('/literature'),
   updateLiterature: PUT('/literature'),
